@@ -7,12 +7,15 @@ from PySide6.QtCore import QObject, QThread, Signal
 from mp3Loader import Mp3Loader
 from audioBuffer import AudioBuffer
 from audioTrack import AudioTrack
+from typing import Callable
+
+from commandUtil import CommandUtil
+from waveformUtil import buffer_to_waveform
 
 class LoadWorker(QThread):
 	progress = Signal(float)
 	success = Signal(object)  # AudioBuffer
 	error = Signal(str)
-	finished_signal = Signal()
 
 	def __init__(self, path: Path):
 		super().__init__()
@@ -35,9 +38,11 @@ class LoadWorker(QThread):
 class AudioEngine(QObject):
 	track: AudioTrack | None = None
 	fileLoaded = Signal()
+	on_position_update: Callable[[float], None] | None = None
 
-	def __init__(self):
+	def __init__(self, command_util: CommandUtil):
 		super().__init__()
+		self.command_util = command_util
 		self._load_worker: LoadWorker | None = None
 		self._pa = pyaudio.PyAudio()
 		self._stream = self._pa.open(
@@ -46,30 +51,35 @@ class AudioEngine(QObject):
 			rate=44100,
 			output=True,
 			stream_callback=self._stream_callback,
+			frames_per_buffer=2048,
 		)
+		self._stream.start_stream()
 
 	def _stream_callback(self, in_data, frame_count, time_info, status):
 		"""Called by PyAudio when it needs more samples."""
 		stereo = self.get_samples(frame_count)
 		return (stereo.astype(np.float32).tobytes(), pyaudio.paContinue)
 
-	def load_file(self, path: Path):
+	def load_file(self, path: str):
+		raw_path = Path(path)
 		if self._load_worker is not None and self._load_worker.isRunning():
 			return
-		self._load_worker = LoadWorker(path)
+		self._load_worker = LoadWorker(raw_path)
 		self._load_worker.progress.connect(self.on_progress)
 		self._load_worker.success.connect(self.on_success)
 		self._load_worker.error.connect(self._on_load_error)
-		self._load_worker.finished_signal.connect(self._on_load_finished)
 		self._load_worker.start()
 
 	def on_progress(self, progress: float):
-		print(f"Progress: {progress}")
+		self.command_util.send_status({"load_progress": progress})
 
 	def on_success(self, buffer: AudioBuffer):
-		print(f"Success: {buffer}")
 		self.track = AudioTrack(buffer)
 		self.fileLoaded.emit()
+
+		# Compute waveform on RT process and send to main for display (audio data stays here)
+		waveform = buffer_to_waveform(buffer, width=1024)
+		self.command_util.send_status({"load_status": "success", "waveform": waveform})
 	
 	def get_track(self) -> AudioTrack | None:
 		return self.track
@@ -77,18 +87,18 @@ class AudioEngine(QObject):
 	def _on_load_error(self, msg: str):
 		print(f"Load error: {msg}")
 
-	def _on_load_finished(self):
-		self._load_worker = None
-
 	def play_track(self):
-		self.track.playing = True
+		if self.track is not None:
+			self.track.playing = True
 
 	def pause_track(self):
-		self.track.playing = False
+		if self.track is not None:
+			self.track.playing = False
 
 	def stop_track(self):
-		self.track.playing = False
-		self.track.position = 0
+		if self.track is not None:
+			self.track.playing = False
+			self.track.position = 0
 
 	# Real time stuff down here. The audio output stream is always open, and always requesting samples.
 	# For now we just have one track, so we delegate getting samples from it.
@@ -96,5 +106,9 @@ class AudioEngine(QObject):
 		if self.track is None:
 			return np.zeros(frame_count * 2, dtype=np.float32)
 		return self.track.get_samples_at_speed(frame_count)
+
+	# IPC Signals
+	def set_on_position_update(self, callback: Callable[[float], None]):
+		self.on_position_update = callback
 	
 	

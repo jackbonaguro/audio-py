@@ -19,12 +19,14 @@ from fileSection import FileLayout
 from waveFormSection import WaveformWidget
 from playbackSection import PlaybackSection
 
+from commandUtil import CommandUtil
+
 class MainWindow(QMainWindow):
-	def __init__(self, engine=None):
+	def __init__(self, command_util: CommandUtil):
 		super().__init__()
 
 		# Set engine for dispatching calls
-		self.engine = engine
+		self.command_util = command_util
 
 		# Window meta
 		self.setWindowTitle("Stream Progress")
@@ -38,11 +40,11 @@ class MainWindow(QMainWindow):
 		file_layout = FileLayout()
 		self.layout.addLayout(file_layout)
 
-		# Waveform section
+		# Waveform section (created when we receive waveform from RT process)
 		self.waveformWidget = None
 
 		# Playback section
-		self.playback_section = PlaybackSection(engine=self.engine)
+		self.playback_section = PlaybackSection(command_util=self.command_util)
 		self.layout.addLayout(self.playback_section)
 
 		# Set central widget, to display
@@ -51,18 +53,12 @@ class MainWindow(QMainWindow):
 		self.setCentralWidget(central)
 
 	def load_file(self, path: Path):
-		self.engine.load_file(path)
+		self.command_util.send_command({"command": "load_file", "path": str(path)})
 
-	def on_file_loaded(self):
-		track = self.engine.get_track()
-		if track is None:
-			return
-		if self.waveformWidget is not None:
-			self.layout.removeWidget(self.waveformWidget)
-			self.waveformWidget.deleteLater()
-		self.waveformWidget = WaveformWidget()
-		self.waveformWidget.set_audio(track.buffer)
-		self.layout.addWidget(self.waveformWidget)
-
-		# Enable playback section
+	def on_waveform_ready(self, waveform):
+		"""Called when RT process sends precomputed waveform (multiprocess flow)."""
+		if self.waveformWidget is None:
+			self.waveformWidget = WaveformWidget()
+			self.layout.insertWidget(1, self.waveformWidget)
+		self.waveformWidget.set_waveform_data(waveform)
 		self.playback_section.set_enabled(True)

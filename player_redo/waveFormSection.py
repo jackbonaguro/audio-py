@@ -4,6 +4,7 @@ from PySide6.QtGui import QPainter, QColor, QPen, QImage
 from PySide6.QtCore import Qt, QTimer
 
 from audioBuffer import AudioBuffer
+from waveformUtil import buffer_to_waveform
 
 class WaveformWidget(QWidget):
 	"""Paints a waveform from preloaded PCM chunks."""
@@ -50,7 +51,7 @@ class WaveformWidget(QWidget):
 				self._waveform = self._waveform_data[indices]
 			self._cached_image = self._waveform_to_image(self._waveform)
 		elif self._buffer:
-			self._waveform = self._buffer_to_waveform(self._buffer, w)
+			self._waveform = buffer_to_waveform(self._buffer, w)
 			self._cached_image = self._waveform_to_image(self._waveform)
 		else:
 			self._waveform = None
@@ -89,22 +90,3 @@ class WaveformWidget(QWidget):
 		painter.end()
 		return img
 
-	def _buffer_to_waveform(self, buffer: AudioBuffer, width: int) -> np.ndarray:
-		if not buffer or buffer.sample_len <= 0:
-			return np.zeros((width, 2))
-		# AudioBuffer stores float32 in [-1, 1], shape (sample_len * 2,) for stereo
-		frames = np.reshape(buffer.buffer[:buffer.write_pos], (-1, 2))
-		mono = frames.mean(axis=1).astype(np.float32)
-		n = len(mono)
-		if n == 0:
-			return np.zeros((width, 2))
-		samples_per_pixel = max(1, n // width)
-		mins = np.zeros(width)
-		maxs = np.zeros(width)
-		for i in range(width):
-			start = i * samples_per_pixel
-			end = min((i + 1) * samples_per_pixel, n)
-			if start < end:
-				mins[i] = mono[start:end].min()
-				maxs[i] = mono[start:end].max()
-		return np.column_stack((mins, maxs))

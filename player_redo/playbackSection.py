@@ -1,12 +1,12 @@
 from PySide6.QtWidgets import QHBoxLayout, QPushButton
 
-from engine import AudioEngine
+from commandUtil import CommandUtil
 
 class PlaybackSection(QHBoxLayout):
-	def __init__(self, engine: AudioEngine):
+	def __init__(self, command_util: CommandUtil):
 		super().__init__()
 
-		self.engine = engine
+		self.command_util = command_util
 
 		self.play_btn = QPushButton("Play")
 		self.play_btn.clicked.connect(self.play)
@@ -27,19 +27,19 @@ class PlaybackSection(QHBoxLayout):
 		self.play_btn.setEnabled(enabled)
 
 	def play(self):
-		self.engine.play_track()
+		self.command_util.send_command({"command": "play"})
 		self.play_btn.setEnabled(False)
 		self.pause_btn.setEnabled(True)
 		self.stop_btn.setEnabled(True)
 
 	def pause(self):
-		self.engine.pause_track()
+		self.command_util.send_command({"command": "pause"})
 		self.play_btn.setEnabled(True)
 		self.pause_btn.setEnabled(False)
 		self.stop_btn.setEnabled(True)
 
 	def stop(self):
-		self.engine.stop_track()
+		self.command_util.send_command({"command": "stop"})
 		self.play_btn.setEnabled(True)
 		self.pause_btn.setEnabled(False)
 		self.stop_btn.setEnabled(False)
