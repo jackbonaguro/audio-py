@@ -56,6 +56,10 @@ def realtime_worker(cmd_q: mp.Queue, status_q: mp.Queue):
 					pos = cmd.get("position")
 					if pos is not None:
 						engine.seek_track(float(pos))
+				elif cmd.get("command") == "set_speed":
+					speed = cmd.get("speed")
+					if speed is not None:
+						engine.set_track_speed(float(speed))
 			except mp.queues.Empty:
 				pass
 

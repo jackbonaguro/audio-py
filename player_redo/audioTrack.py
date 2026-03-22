@@ -15,7 +15,7 @@ class AudioTrack:
 		self.playing = False
 		self.looping = False
 		self.command_util = command_util
-		self.speed = 0.9
+		self.speed = 1.0
 		self.set_buffer(buffer)
 
 	def set_buffer(self, buffer: AudioBuffer):
@@ -26,6 +26,9 @@ class AudioTrack:
 
 	def seek(self, position: float):
 		self.position = max(0, min(position, self.duration))
+
+	def set_speed(self, speed: float):
+		self.speed = speed
 
 	# If track is paused we provide zeros, otherwise we provide samples from the track and advance position accordingly.
 	# When we reach the end of the buffer, we loop back to the start.

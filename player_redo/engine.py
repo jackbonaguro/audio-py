@@ -105,6 +105,10 @@ class AudioEngine(QObject):
 		if self.track is not None:
 			self.track.seek(position)
 
+	def set_track_speed(self, speed: float):
+		if self.track is not None:
+			self.track.set_speed(speed)
+
 	# Real time stuff down here. The audio output stream is always open, and always requesting samples.
 	# For now we just have one track, so we delegate getting samples from it.
 	def get_samples(self, frame_count: int) -> np.ndarray:

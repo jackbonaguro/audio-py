@@ -1,10 +1,9 @@
-from PySide6.QtWidgets import QHBoxLayout, QPushButton, QSlider, QVBoxLayout
+from PySide6.QtGui import QFont
+from PySide6.QtWidgets import QHBoxLayout, QPushButton, QSlider, QVBoxLayout, QLabel
 from PySide6.QtCore import Qt
 
 from commandUtil import CommandUtil
 from waveFormSection import WaveformWidget
-
-SLIDER_MAX = 10000
 
 class PlaybackSection(QVBoxLayout):
 	def __init__(self, command_util: CommandUtil):
@@ -17,14 +16,28 @@ class PlaybackSection(QVBoxLayout):
 		self._updating_from_rt = False
 		self._user_dragging = False
 
-		# self.position_slider = QSlider(Qt.Orientation.Horizontal)
-		# self.position_slider.setRange(0, SLIDER_MAX)
-		# self.position_slider.setValue(0)
-		# self.position_slider.sliderPressed.connect(lambda: setattr(self, "_user_dragging", True))
-		# self.position_slider.sliderReleased.connect(self._on_slider_released)
-		# self.addWidget(self.position_slider)
-
 		btn_row = QHBoxLayout()
+
+		# Logarithmic playback speed adjust slider
+		self.adjust_lower_label = QLabel("0.5")
+		self.adjust_upper_label = QLabel("2.0")
+		self.speed_value_label = QLabel("(1.0)")
+		font = QFont()
+		font.setStyleHint(QFont.StyleHint.Monospace)
+		font.setFixedPitch(True)
+		self.speed_value_label.setFont(font)
+		self.adjust_speed_slider = QSlider(Qt.Orientation.Horizontal)
+		self.adjust_speed_slider.setRange(-100, 100)
+		self.adjust_speed_slider.setValue(0)
+		self.adjust_speed_slider.valueChanged.connect(self.set_speed)
+		self.adjust_speed_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
+		self.adjust_speed_slider.setTickInterval(10)
+
+		btn_row.addWidget(self.adjust_lower_label)
+		btn_row.addWidget(self.adjust_speed_slider)
+		btn_row.addWidget(self.speed_value_label)
+		btn_row.addWidget(self.adjust_upper_label)
+
 		self.play_btn = QPushButton("▶️")
 		self.play_btn.clicked.connect(self.play)
 		self.play_btn.setEnabled(False)
@@ -63,21 +76,13 @@ class PlaybackSection(QVBoxLayout):
 		self._duration = max(0, duration)
 		self.waveform_widget.set_duration(duration)
 
-	def _send_seek(self, value: int):
-		if self._duration <= 0:
-			return
-		pos = (value / SLIDER_MAX) * self._duration
-		self.command_util.send_command({"command": "seek", "position": pos})
-
 	def _on_waveform_seek(self, position: float):
 		self._user_dragging = True
 		if self._duration <= 0:
 			return
 		pos = max(0.0, min(self._duration, position))
 		self.command_util.send_command({"command": "seek", "position": pos})
-		# Update slider and waveform immediately for responsive feedback
-		val = int(SLIDER_MAX * pos / self._duration)
-		# self.position_slider.setValue(min(val, SLIDER_MAX))
+		# Update waveform immediately for responsive feedback
 		self.waveform_widget.update_position(pos)
 
 	def _on_waveform_seek_finished(self):
@@ -89,18 +94,8 @@ class PlaybackSection(QVBoxLayout):
 			return
 		self._updating_from_rt = True
 		if self._duration > 0:
-			val = int(SLIDER_MAX * position / self._duration)
-			# self.position_slider.setValue(min(val, SLIDER_MAX))
 			self.waveform_widget.update_position(position)
 		self._updating_from_rt = False
-
-	# def _on_slider_released(self):
-	# 	self._user_dragging = False
-	# 	if self._updating_from_rt:
-	# 		return
-	# 	pos = (self.position_slider.value() / SLIDER_MAX) * self._duration
-	# 	self._send_seek(self.position_slider.value())
-	# 	self.waveform_widget.update_position(pos)
 
 	def play(self):
 		if not self.playing:
@@ -126,3 +121,11 @@ class PlaybackSection(QVBoxLayout):
 		self.stop_btn.setEnabled(False)
 		self.play_btn.setText("▶️")
 		self.waveform_widget.update_position(0)
+
+	def set_speed(self, value: int):
+		# Convert integer slider (-100..100) to float -1..1, then to log range 0.5..2.0
+		# 2^x maps (-1, 0, 1) -> (0.5, 1.0, 2.0)
+		x = value / 100.0
+		speed = 2 ** x
+		self.speed_value_label.setText(f"({speed:.1f})")
+		self.command_util.send_command({"command": "set_speed", "speed": speed})
