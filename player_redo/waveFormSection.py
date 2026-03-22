@@ -1,13 +1,16 @@
 import numpy as np
 from PySide6.QtWidgets import QWidget
 from PySide6.QtGui import QPainter, QColor, QPen, QImage
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, QTimer, Signal
 
 from audioBuffer import AudioBuffer
 from waveformUtil import buffer_to_waveform
 
 class WaveformWidget(QWidget):
 	"""Paints a waveform from preloaded PCM chunks."""
+
+	seek_requested = Signal(float)  # position in seconds
+	seek_finished = Signal()
 
 	def __init__(self, parent=None):
 		super().__init__(parent)
@@ -18,6 +21,8 @@ class WaveformWidget(QWidget):
 		self._channels = 0
 		self._waveform: np.ndarray | None = None
 		self._cached_image: QImage | None = None
+		self._position = 0.0
+		self._duration = 0.0
 		self._resize_timer = QTimer(self)
 		self._resize_timer.setSingleShot(True)
 		self._resize_timer.timeout.connect(self._recompute_waveform)
@@ -34,6 +39,10 @@ class WaveformWidget(QWidget):
 		self._buffer = None
 		self._waveform_data = waveform
 		self._recompute_waveform()
+
+	def set_duration(self, duration: float):
+		"""Set track duration (seconds) for progress overlay."""
+		self._duration = max(0.0, duration)
 
 	def _recompute_waveform(self):
 		w = self.width() or 400
@@ -71,6 +80,15 @@ class WaveformWidget(QWidget):
 		painter = QPainter(self)
 		# Single draw call — fast, avoids blocking the audio callback during repaint
 		painter.drawImage(self.rect(), self._cached_image)
+		# Progress overlay: semi-transparent rectangle from left to current position
+		if self._duration > 0 and self._position >= 0:
+			frac = min(1.0, self._position / self._duration)
+			x_end = int(frac * self.width())
+			if x_end > 0:
+				painter.fillRect(
+					0, 0, x_end, self.height(),
+					QColor(255, 180, 100, 100),
+				)
 
 	def _waveform_to_image(self, waveform: np.ndarray) -> QImage:
 		"""Render waveform mins/maxs to a QImage. Done once per recompute, not per paint."""
@@ -90,3 +108,30 @@ class WaveformWidget(QWidget):
 		painter.end()
 		return img
 
+	def update_position(self, position: float):
+		self._position = position
+		self.update()
+
+	def _x_to_position(self, x: float) -> float:
+		"""Convert widget x coordinate to position in seconds."""
+		if self._duration <= 0 or self.width() <= 0:
+			return 0.0
+		frac = max(0.0, min(1.0, x / self.width()))
+		return frac * self._duration
+
+	def mousePressEvent(self, event):
+		if event.button() == Qt.MouseButton.LeftButton and self._cached_image is not None:
+			pos = self._x_to_position(event.position().x())
+			self.seek_requested.emit(pos)
+		super().mousePressEvent(event)
+
+	def mouseMoveEvent(self, event):
+		if event.buttons() & Qt.MouseButton.LeftButton and self._cached_image is not None:
+			pos = self._x_to_position(event.position().x())
+			self.seek_requested.emit(pos)
+		super().mouseMoveEvent(event)
+
+	def mouseReleaseEvent(self, event):
+		if event.button() == Qt.MouseButton.LeftButton:
+			self.seek_finished.emit()
+		super().mouseReleaseEvent(event)

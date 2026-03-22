@@ -32,7 +32,7 @@ class LoadWorker(QThread):
 		except Exception as e:
 			self.error.emit(str(e))
 		finally:
-			self.finished_signal.emit()
+			pass
 
 
 class AudioEngine(QObject):
@@ -71,15 +71,15 @@ class AudioEngine(QObject):
 		self._load_worker.start()
 
 	def on_progress(self, progress: float):
-		self.command_util.send_status({"load_progress": progress})
+		self.command_util.send_status({"type": "load_progress", "progress": progress})
 
 	def on_success(self, buffer: AudioBuffer):
-		self.track = AudioTrack(buffer)
+		self.track = AudioTrack(buffer, self.command_util)
 		self.fileLoaded.emit()
 
 		# Compute waveform on RT process and send to main for display (audio data stays here)
 		waveform = buffer_to_waveform(buffer, width=1024)
-		self.command_util.send_status({"load_status": "success", "waveform": waveform})
+		self.command_util.send_status({"type": "load_status", "status": "success", "waveform": waveform, "duration": self.track.duration})
 	
 	def get_track(self) -> AudioTrack | None:
 		return self.track
@@ -99,13 +99,21 @@ class AudioEngine(QObject):
 		if self.track is not None:
 			self.track.playing = False
 			self.track.position = 0
+			self.command_util.send_status({"type": "track_stopped"})
+
+	def seek_track(self, position: float):
+		if self.track is not None:
+			self.track.seek(position)
 
 	# Real time stuff down here. The audio output stream is always open, and always requesting samples.
 	# For now we just have one track, so we delegate getting samples from it.
 	def get_samples(self, frame_count: int) -> np.ndarray:
 		if self.track is None:
 			return np.zeros(frame_count * 2, dtype=np.float32)
-		return self.track.get_samples_at_speed(frame_count)
+		stereo = self.track.get_samples(frame_count)
+		if self.on_position_update is not None:
+			self.on_position_update(self.track.position)
+		return stereo
 
 	# IPC Signals
 	def set_on_position_update(self, callback: Callable[[float], None]):

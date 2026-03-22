@@ -8,4 +8,5 @@ quit()
 
 # RT -> Main Statuses
 load_progress(progress: float) # From 0.0 - 1.0
-load_status(waveform: np.ndarray) # waveform shape: (4096, 2)
+load_status(waveform: np.ndarray, duration: float) # waveform shape: (4096, 2)
+track_stopped()

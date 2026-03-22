@@ -27,7 +27,7 @@ def realtime_worker(cmd_q: mp.Queue, status_q: mp.Queue):
 
 	def on_position_update(position: float):
 		try:
-			status_q.put_nowait({"position": position})
+			status_q.put_nowait({"type": "position", "position": position})
 		except mp.queues.Full:
 			pass
 
@@ -52,6 +52,10 @@ def realtime_worker(cmd_q: mp.Queue, status_q: mp.Queue):
 					path = cmd.get("path")
 					if path:
 						engine.load_file(path)
+				elif cmd.get("command") == "seek":
+					pos = cmd.get("position")
+					if pos is not None:
+						engine.seek_track(float(pos))
 			except mp.queues.Empty:
 				pass
 
@@ -66,7 +70,9 @@ def realtime_worker(cmd_q: mp.Queue, status_q: mp.Queue):
 
 class GuiQThread(QThread):
 	waveform_ready = Signal(object)
-	status_received = Signal(dict)
+	load_progress = Signal(float)
+	position_received = Signal(float)
+	track_stopped = Signal()
 
 	def __init__(self, command_util: CommandUtil, main_window: MainWindow):
 		super().__init__()
@@ -77,9 +83,15 @@ class GuiQThread(QThread):
 		while True:
 			try:
 				status = self.command_util.status_queue.get(timeout=0.1)
-				if "waveform" in status:
-					self.waveform_ready.emit(status["waveform"])
-				self.status_received.emit(status)
+				type = status.get("type")
+				if type == "position":
+					self.position_received.emit(status.get("position"))
+				if type == "load_progress":
+					self.load_progress.emit(status.get("progress"))
+				if type == "load_status":
+					self.waveform_ready.emit(status)
+				if type == "track_stopped":
+					self.track_stopped.emit()
 			except Exception:
 				pass
 
@@ -92,6 +104,9 @@ def gui_worker(cmd_q: mp.Queue, status_q: mp.Queue):
 	# Unlike the realtime worker, we have Qt here for threads
 	gui_thread = GuiQThread(command_util, window)
 	gui_thread.waveform_ready.connect(window.on_waveform_ready)
+	gui_thread.load_progress.connect(window.on_load_progress)
+	gui_thread.position_received.connect(window.on_position_received)
+	gui_thread.track_stopped.connect(window.on_track_stopped)
 	gui_thread.start()
 
 	window.show()

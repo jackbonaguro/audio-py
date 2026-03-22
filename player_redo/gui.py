@@ -30,18 +30,15 @@ class MainWindow(QMainWindow):
 
 		# Window meta
 		self.setWindowTitle("Stream Progress")
-		self.setMinimumWidth(400)
+		self.setMinimumWidth(800)
 
 		# Layout
 		self.layout = QVBoxLayout()
 		self.layout.setSpacing(12)
 
 		# File section
-		file_layout = FileLayout()
-		self.layout.addLayout(file_layout)
-
-		# Waveform section (created when we receive waveform from RT process)
-		self.waveformWidget = None
+		self.file_layout = FileLayout()
+		self.layout.addLayout(self.file_layout)
 
 		# Playback section
 		self.playback_section = PlaybackSection(command_util=self.command_util)
@@ -55,10 +52,19 @@ class MainWindow(QMainWindow):
 	def load_file(self, path: Path):
 		self.command_util.send_command({"command": "load_file", "path": str(path)})
 
-	def on_waveform_ready(self, waveform):
+	def on_waveform_ready(self, status):
 		"""Called when RT process sends precomputed waveform (multiprocess flow)."""
-		if self.waveformWidget is None:
-			self.waveformWidget = WaveformWidget()
-			self.layout.insertWidget(1, self.waveformWidget)
-		self.waveformWidget.set_waveform_data(waveform)
-		self.playback_section.set_enabled(True)
+		waveform = status.get("waveform")
+		if waveform is None:
+			return
+		self.playback_section.on_waveform_ready(status)
+
+	def on_position_received(self, position: float):
+		"""Handle position and other status updates from RT process."""
+		self.playback_section.update_position(position)
+
+	def on_track_stopped(self):
+		self.playback_section.on_track_stopped()
+
+	def on_load_progress(self, progress: float):
+		self.file_layout.update_progress(progress)
