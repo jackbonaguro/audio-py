@@ -64,12 +64,13 @@ class AudioTrack:
 			source_frames_consumed = scaled_frame_count
 		else:
 			first_part = buffer[start_frame * 2 : (start_frame + frames_until_end) * 2]
+			remaining_frames = max(0, frame_count - frames_until_end)
 			if self.looping:
-				second_part = buffer[0 : (frame_count - frames_until_end) * 2]
+				second_part = buffer[0 : remaining_frames * 2]
 			else:
-				second_part = np.zeros((frame_count - frames_until_end) * 2, dtype=np.float32)
-			stereo = np.concatenate([first_part, second_part])
-			source_frames_consumed = frames_until_end + (frame_count - frames_until_end)
+				second_part = np.zeros(remaining_frames * 2, dtype=np.float32)
+			stereo = np.concatenate([first_part, second_part])[: frame_count * 2]
+			source_frames_consumed = frames_until_end + remaining_frames
 
 		self.position += source_frames_consumed / 44100
 		if self.position >= self.duration:
