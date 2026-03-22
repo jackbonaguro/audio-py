@@ -17,12 +17,12 @@ class PlaybackSection(QVBoxLayout):
 		self._updating_from_rt = False
 		self._user_dragging = False
 
-		self.position_slider = QSlider(Qt.Orientation.Horizontal)
-		self.position_slider.setRange(0, SLIDER_MAX)
-		self.position_slider.setValue(0)
-		self.position_slider.sliderPressed.connect(lambda: setattr(self, "_user_dragging", True))
-		self.position_slider.sliderReleased.connect(self._on_slider_released)
-		self.addWidget(self.position_slider)
+		# self.position_slider = QSlider(Qt.Orientation.Horizontal)
+		# self.position_slider.setRange(0, SLIDER_MAX)
+		# self.position_slider.setValue(0)
+		# self.position_slider.sliderPressed.connect(lambda: setattr(self, "_user_dragging", True))
+		# self.position_slider.sliderReleased.connect(self._on_slider_released)
+		# self.addWidget(self.position_slider)
 
 		btn_row = QHBoxLayout()
 		self.play_btn = QPushButton("▶️")
@@ -56,7 +56,7 @@ class PlaybackSection(QVBoxLayout):
 
 	def set_enabled(self, enabled: bool):
 		self.play_btn.setEnabled(enabled)
-		self.position_slider.setEnabled(enabled)
+		# self.position_slider.setEnabled(enabled)
 		self.waveform_widget.setEnabled(enabled)
 
 	def set_duration(self, duration: float):
@@ -77,7 +77,7 @@ class PlaybackSection(QVBoxLayout):
 		self.command_util.send_command({"command": "seek", "position": pos})
 		# Update slider and waveform immediately for responsive feedback
 		val = int(SLIDER_MAX * pos / self._duration)
-		self.position_slider.setValue(min(val, SLIDER_MAX))
+		# self.position_slider.setValue(min(val, SLIDER_MAX))
 		self.waveform_widget.update_position(pos)
 
 	def _on_waveform_seek_finished(self):
@@ -90,17 +90,17 @@ class PlaybackSection(QVBoxLayout):
 		self._updating_from_rt = True
 		if self._duration > 0:
 			val = int(SLIDER_MAX * position / self._duration)
-			self.position_slider.setValue(min(val, SLIDER_MAX))
+			# self.position_slider.setValue(min(val, SLIDER_MAX))
 			self.waveform_widget.update_position(position)
 		self._updating_from_rt = False
 
-	def _on_slider_released(self):
-		self._user_dragging = False
-		if self._updating_from_rt:
-			return
-		pos = (self.position_slider.value() / SLIDER_MAX) * self._duration
-		self._send_seek(self.position_slider.value())
-		self.waveform_widget.update_position(pos)
+	# def _on_slider_released(self):
+	# 	self._user_dragging = False
+	# 	if self._updating_from_rt:
+	# 		return
+	# 	pos = (self.position_slider.value() / SLIDER_MAX) * self._duration
+	# 	self._send_seek(self.position_slider.value())
+	# 	self.waveform_widget.update_position(pos)
 
 	def play(self):
 		if not self.playing:
