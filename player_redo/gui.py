@@ -29,7 +29,7 @@ class MainWindow(QMainWindow):
 		self.command_util = command_util
 
 		# Window meta
-		self.setWindowTitle("Stream Progress")
+		self.setWindowTitle("Jack's Mixer")
 		self.setMinimumWidth(800)
 
 		# Layout

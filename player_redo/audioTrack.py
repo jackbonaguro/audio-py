@@ -41,8 +41,9 @@ class AudioTrack:
 		start_frame = int(self.position * 44100) % self.buffer.sample_len
 
 		# Starting here, we need to scale requested output frames by playback speed
-		frames_until_end = int((self.buffer.sample_len - start_frame) * self.speed)
+		# scaled_frame_count = source frames we need to read (at 2x we read 2x to downsample)
 		scaled_frame_count = int(frame_count * self.speed)
+		frames_until_end = self.buffer.sample_len - start_frame  # actual frames available
 
 		if scaled_frame_count <= frames_until_end:
 			original_stereo = buffer[start_frame * 2 : (start_frame + scaled_frame_count) * 2].copy()
