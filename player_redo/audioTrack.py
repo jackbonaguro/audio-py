@@ -1,21 +1,28 @@
 from audioBuffer import AudioBuffer
 import numpy as np
 from commandUtil import CommandUtil
+from lerpStretcher import TimeStretchAdapter
+from stftStretcher import StftStretcher
+
 # Audio Track class
 # Has stateful position and playing flag
 # For now the entire thing has a single buffer in memory,
 # but in theory that could be chunked out into multiple buffers
 
-# Linear interpolation is superior, but more expensive. Default to nearest-neighbor.
-USE_LINEAR_INTERPOLATION = True
 
 class AudioTrack:
-	def __init__(self, buffer: AudioBuffer | None = None, command_util: CommandUtil | None = None):
+	def __init__(
+		self,
+		buffer: AudioBuffer | None = None,
+		command_util: CommandUtil | None = None,
+		stretcher: StftStretcher | None = None,
+	):
 		self.position = 0
 		self.playing = False
 		self.looping = False
 		self.command_util = command_util
 		self.speed = 1.0
+		self.stretcher = StftStretcher(self)
 		self.set_buffer(buffer)
 
 	def set_buffer(self, buffer: AudioBuffer):
@@ -26,6 +33,8 @@ class AudioTrack:
 
 	def seek(self, position: float):
 		self.position = max(0, min(position, self.duration))
+		if hasattr(self.stretcher, "on_seek"):
+			self.stretcher.on_seek()
 
 	def set_speed(self, speed: float):
 		self.speed = speed
@@ -47,29 +56,17 @@ class AudioTrack:
 
 		if scaled_frame_count <= frames_until_end:
 			original_stereo = buffer[start_frame * 2 : (start_frame + scaled_frame_count) * 2].copy()
-			left = original_stereo[0::2]
-			right = original_stereo[1::2]
-			scaled_stereo = np.empty(frame_count * 2, dtype=np.float32)
-			if USE_LINEAR_INTERPOLATION:
-				sample_positions = np.linspace(0, scaled_frame_count - 1, frame_count, dtype=np.float32)
-				xp = np.arange(scaled_frame_count, dtype=np.float32)
-				scaled_stereo[0::2] = np.interp(sample_positions, xp, left)
-				scaled_stereo[1::2] = np.interp(sample_positions, xp, right)
-			else:
-				# Nearest-neighbor interpolation
-				indices = np.round(np.linspace(0, scaled_frame_count - 1, frame_count)).astype(np.intp)
-				scaled_stereo[0::2] = left[indices]
-				scaled_stereo[1::2] = right[indices]
-			stereo = scaled_stereo
+			stereo = self.stretcher.get_samples(scaled_frame_count)
 			source_frames_consumed = scaled_frame_count
 		else:
 			first_part = buffer[start_frame * 2 : (start_frame + frames_until_end) * 2]
-			remaining_frames = max(0, frame_count - frames_until_end)
+			remaining_frames = scaled_frame_count - frames_until_end
 			if self.looping:
 				second_part = buffer[0 : remaining_frames * 2]
 			else:
 				second_part = np.zeros(remaining_frames * 2, dtype=np.float32)
-			stereo = np.concatenate([first_part, second_part])[: frame_count * 2]
+			original_stereo = np.concatenate([first_part, second_part])[: scaled_frame_count * 2]
+			stereo = self.stretcher.get_samples(scaled_frame_count)
 			source_frames_consumed = frames_until_end + remaining_frames
 
 		self.position += source_frames_consumed / 44100

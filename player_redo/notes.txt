@@ -1,0 +1,12 @@
+All Open Source Pitch/Time Shifting Algorithms
+rubberband
+stftpitchshift
+soundtouch (C++ only)
+librosa (also based on stft)
+
+All Open Source Tempo Detection Algorithms
+librosa
+essentia (essentia.upf.edu)
+
+See if I can get multiple numpy versions (v1 for rubberband, v2 for everything else):
+https://github.com/astral-sh/uv/issues/6981

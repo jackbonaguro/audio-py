@@ -57,8 +57,14 @@ class AudioEngine(QObject):
 
 	def _stream_callback(self, in_data, frame_count, time_info, status):
 		"""Called by PyAudio when it needs more samples."""
-		stereo = self.get_samples(frame_count)
-		return (stereo.astype(np.float32).tobytes(), pyaudio.paContinue)
+		try:
+			stereo = self.get_samples(frame_count)
+			return (stereo.astype(np.float32).tobytes(), pyaudio.paContinue)
+		except Exception as e:
+			print(f"Stream callback error: {e}", flush=True)
+			import traceback
+			traceback.print_exc()
+			return (np.zeros(frame_count * 2, dtype=np.float32).tobytes(), pyaudio.paContinue)
 
 	def load_file(self, path: str):
 		raw_path = Path(path)

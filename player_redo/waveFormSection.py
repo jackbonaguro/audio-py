@@ -15,7 +15,6 @@ class WaveformWidget(QWidget):
 	def __init__(self, parent=None):
 		super().__init__(parent)
 		self.setMinimumHeight(80)
-		self.setStyleSheet("background-color: #1a1a1a; border-radius: 4px;")
 		self._buffer: AudioBuffer | None = None
 		self._waveform_data: np.ndarray | None = None
 		self._channels = 0
@@ -26,6 +25,7 @@ class WaveformWidget(QWidget):
 		self._resize_timer = QTimer(self)
 		self._resize_timer.setSingleShot(True)
 		self._resize_timer.timeout.connect(self._recompute_waveform)
+		self._cached_image = self._waveform_to_image(np.zeros((4096, 2), dtype=np.float32))
 
 	def set_audio(self, buffer: AudioBuffer):
 		"""Set from AudioBuffer (used when engine runs in-process)."""
@@ -95,7 +95,8 @@ class WaveformWidget(QWidget):
 		w, _ = waveform.shape
 		h = max(80, self.height())
 		img = QImage(w, h, QImage.Format.Format_ARGB32)
-		img.fill(0xFF1A1A1A)  # #1a1a1a background
+		img.fill(QColor.fromRgba(0xFFF0))
+	
 		mid, amp = h / 2, (h / 2) * 0.95
 		pen = QPen(QColor(100, 180, 255))
 		pen.setWidth(1)

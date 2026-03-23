@@ -1,4 +1,5 @@
 import multiprocessing as mp
+import sys
 import threading
 import time
 
@@ -9,9 +10,36 @@ from engine import AudioEngine
 
 from commandUtil import CommandUtil
 
-def realtime_worker(cmd_q: mp.Queue, status_q: mp.Queue):
+def realtime_worker(cmd_q: mp.Queue, status_q: mp.Queue, log_q: mp.Queue):
 	import gc
+	import sys
 	gc.disable()  # Prevent GC pauses from causing buffer underruns (pops)
+
+	class QueueStdout:
+		def __init__(self, queue):
+			self.queue = queue
+		def write(self, s):
+			if s:
+				try:
+					self.queue.put_nowait(s)
+				except mp.queues.Full:
+					pass
+		def flush(self):
+			pass
+	sys.stdout = QueueStdout(log_q)
+
+	class QueueStderr:
+		def __init__(self, queue):
+			self.queue = queue
+		def write(self, s):
+			if s:
+				try:
+					self.queue.put_nowait(s)
+				except mp.queues.Full:
+					pass
+		def flush(self):
+			pass
+	sys.stderr = QueueStderr(log_q)
 
 	command_util = CommandUtil(cmd_q, status_q)
 	import os
@@ -117,14 +145,38 @@ def gui_worker(cmd_q: mp.Queue, status_q: mp.Queue):
 	app.exec()
 	command_util.send_command({"command": "quit"})
 
+def log_relay(log_q: mp.Queue, error_q: mp.Queue):
+	while True:
+		try:
+			msg = log_q.get()
+			if msg is None:
+				break
+			print(msg, end="", flush=True)
+			# error_q is unused (realtime worker sends stderr to log_q); non-blocking check
+			try:
+				err = error_q.get_nowait()
+				if err is not None:
+					print(err, file=sys.stderr, end="", flush=True)
+			except mp.queues.Empty:
+				pass
+		except Exception:
+			break
+
 if __name__ == "__main__":
 	mp.set_start_method("spawn")  # Use spawn for cross-platform
 	
 	cmd_q = mp.Queue(maxsize=64)
 	status_q = mp.Queue(maxsize=256)
+	log_q = mp.Queue(maxsize=256)
+	error_q = mp.Queue(maxsize=256)
 	
-	rt = mp.Process(target=realtime_worker, args=(cmd_q, status_q), daemon=True)
+	rt = mp.Process(target=realtime_worker, args=(cmd_q, status_q, log_q), daemon=True)
 	rt.start()
 	
+	relay = threading.Thread(target=log_relay, args=(log_q, error_q), daemon=True)
+	relay.start()
+	
 	gui_worker(cmd_q, status_q)
+	log_q.put(None)
+	error_q.put(None)
 	rt.join()

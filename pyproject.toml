@@ -9,4 +9,7 @@ dependencies = [
     "pyaudio",
     "PySide6",
     "rubberband>=1.0.2",
+    "scipy>=1.10",
+    "soundfile>=0.13.1",
+    "stftpitchshift>=2.0",
 ]
