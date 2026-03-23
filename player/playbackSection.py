@@ -17,6 +17,12 @@ class PlaybackSection(QVBoxLayout):
 
 		btn_row = QHBoxLayout()
 
+		# Tempo label
+		self.tempo_label = QLabel("Tempo: ")
+		self.tempo_value_label = QLabel("--")
+		btn_row.addWidget(self.tempo_label)
+		btn_row.addWidget(self.tempo_value_label)
+
 		# Logarithmic playback speed adjust slider
 		self.speed_label = QLabel("Speed")
 		self.speed_slider = QSlider(Qt.Orientation.Horizontal)
@@ -64,8 +70,11 @@ class PlaybackSection(QVBoxLayout):
 		waveform = status.get("waveform")
 		self.waveform_widget.set_waveform_data(waveform)
 
+		if status.get("tempo") is not None:
+			self.set_tempo(status.get("tempo"))
+
 		if status.get("duration") is not None:
-			self.set_duration(status["duration"])
+			self.set_duration(status.get("duration"))
 		self.set_enabled(True)
 
 	def set_enabled(self, enabled: bool):
@@ -76,6 +85,11 @@ class PlaybackSection(QVBoxLayout):
 	def set_duration(self, duration: float):
 		self._duration = max(0, duration)
 		self.waveform_widget.set_duration(duration)
+
+	def set_tempo(self, tempo: float):
+		self.tempo = tempo
+		print(f"Tempo: {tempo}")
+		self.tempo_value_label.setText(f"{tempo:.1f}")
 
 	def _on_waveform_seek(self, position: float):
 		self._user_dragging = True

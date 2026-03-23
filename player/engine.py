@@ -11,10 +11,11 @@ from typing import Callable
 
 from commandUtil import CommandUtil
 from waveformUtil import buffer_to_waveform
+from tempoDetector import TempoDetector
 
 class LoadWorker(QThread):
 	progress = Signal(float)
-	success = Signal(object)  # AudioBuffer
+	success = Signal(object)  # (AudioBuffer, tempo) - use object; tuple[AudioBuffer, float] not recognised by Qt
 	error = Signal(str)
 
 	def __init__(self, path: Path):
@@ -27,12 +28,16 @@ class LoadWorker(QThread):
 			loader.load(
 				self.path,
 				progressCallback=lambda p: self.progress.emit(p),
-				successCallback=lambda b: self.success.emit(b),
+				successCallback=lambda b: self.detect_tempo(b),
 			)
 		except Exception as e:
 			self.error.emit(str(e))
 		finally:
 			pass
+	
+	def detect_tempo(self, buffer: AudioBuffer):
+		tempo = TempoDetector().detect(buffer.buffer)
+		self.success.emit((buffer, tempo))
 
 
 class AudioEngine(QObject):
@@ -79,13 +84,20 @@ class AudioEngine(QObject):
 	def on_progress(self, progress: float):
 		self.command_util.send_status({"type": "load_progress", "progress": progress})
 
-	def on_success(self, buffer: AudioBuffer):
+	def on_success(self, status: tuple[AudioBuffer, float]):
+		buffer, tempo = status
 		self.track = AudioTrack(buffer, self.command_util)
 		self.fileLoaded.emit()
 
 		# Compute waveform on RT process and send to main for display (audio data stays here)
 		waveform = buffer_to_waveform(buffer, width=1024)
-		self.command_util.send_status({"type": "load_status", "status": "success", "waveform": waveform, "duration": self.track.duration})
+		self.command_util.send_status({
+			"type": "load_status",
+			"status": "success",
+			"waveform": waveform,
+			"duration": self.track.duration,
+			"tempo": tempo,
+		})
 	
 	def get_track(self) -> AudioTrack | None:
 		return self.track
