@@ -115,7 +115,8 @@ class AudioTrack:
 				stereo[: n_out * 2 : 2] = left[:n_out]
 				stereo[1 : n_out * 2 : 2] = right[:n_out]
 
-		self.position += frame_count
+		# Advance by actual source frames consumed (output_frames * speed)
+		self.position += int(frame_count * self.speed)
 		if self.position >= self.total_frames:
 			if self.looping:
 				self.position = self.position % self.total_frames

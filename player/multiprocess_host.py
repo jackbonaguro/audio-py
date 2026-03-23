@@ -63,6 +63,25 @@ def realtime_worker(cmd_q: mp.Queue, status_q: mp.Queue, log_q: mp.Queue):
 
 	state = {"running": True}
 
+	def drain_and_apply(command: str, param_key: str, apply_fn, initial_value=None):
+		"""For slider-style commands: drain all matching commands from queue, apply the last value
+		once, re-queue any other commands. Avoids flooding the engine with rapid slider updates."""
+		deferred = []
+		target = initial_value
+		while True:
+			try:
+				c = cmd_q.get_nowait()
+				if c.get("command") == command and c.get(param_key) is not None:
+					target = float(c[param_key])
+				else:
+					deferred.append(c)
+			except mp.queues.Empty:
+				break
+		if target is not None:
+			apply_fn(target)
+		for c in deferred:
+			cmd_q.put(c)
+
 	def command_listener():
 		while state["running"]:
 			try:
@@ -81,32 +100,11 @@ def realtime_worker(cmd_q: mp.Queue, status_q: mp.Queue, log_q: mp.Queue):
 					if path:
 						engine.load_file(path)
 				elif cmd.get("command") == "seek":
-					pos = cmd.get("position")
-					if pos is not None:
-						target = float(pos)
-						deferred = []
-						while True:
-							# Don't directly pass seek commands, as there'll be too many to process in real time
-							# Instead, gather all seek commands in the queue and seek to the last one
-							try:
-								c = cmd_q.get_nowait()
-								if c.get("command") == "seek" and c.get("position") is not None:
-									target = float(c["position"])
-								else:
-									deferred.append(c)
-							except mp.queues.Empty:
-								break
-						engine.seek_track(target)
-						for c in deferred:
-							cmd_q.put(c)
+					drain_and_apply("seek", "position", engine.seek_track, float(cmd["position"]) if cmd.get("position") is not None else None)
 				elif cmd.get("command") == "set_speed":
-					speed = cmd.get("speed")
-					if speed is not None:
-						engine.set_track_speed(float(speed))
+					drain_and_apply("set_speed", "speed", engine.set_track_speed, float(cmd["speed"]) if cmd.get("speed") is not None else None)
 				elif cmd.get("command") == "set_pitch":
-					pitch = cmd.get("pitch")
-					if pitch is not None:
-						engine.set_track_pitch(float(pitch))
+					drain_and_apply("set_pitch", "pitch", engine.set_track_pitch, float(cmd["pitch"]) if cmd.get("pitch") is not None else None)
 			except mp.queues.Empty:
 				pass
 
