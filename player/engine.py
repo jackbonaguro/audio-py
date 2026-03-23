@@ -1,43 +1,21 @@
-from pathlib import Path
+from multiprocessing import shared_memory
 import numpy as np
 import pyaudio
 
-from PySide6.QtCore import QObject, QThread, Signal
+from PySide6.QtCore import QObject, Signal
 
-from mp3Loader import Mp3Loader
-from audioBuffer import AudioBuffer
 from audioTrack import AudioTrack
 from typing import Callable
 
 from commandUtil import CommandUtil
-from waveformUtil import buffer_to_waveform
-from tempoDetector import TempoDetector
 
-class LoadWorker(QThread):
-	progress = Signal(float)
-	success = Signal(object)  # (AudioBuffer, tempo) - use object; tuple[AudioBuffer, float] not recognised by Qt
-	error = Signal(str)
 
-	def __init__(self, path: Path):
-		super().__init__()
-		self.path = path
-
-	def run(self):
-		try:
-			loader = Mp3Loader()
-			loader.load(
-				self.path,
-				progressCallback=lambda p: self.progress.emit(p),
-				successCallback=lambda b: self.detect_tempo(b),
-			)
-		except Exception as e:
-			self.error.emit(str(e))
-		finally:
-			pass
-	
-	def detect_tempo(self, buffer: AudioBuffer):
-		tempo = TempoDetector().detect(buffer.buffer)
-		self.success.emit((buffer, tempo))
+class _ShmBuffer:
+	"""Minimal buffer-like wrapper for shared-memory-backed audio data."""
+	def __init__(self, arr: np.ndarray, sample_len: int):
+		self.buffer = arr
+		self.sample_len = sample_len
+		self.write_pos = sample_len
 
 
 class AudioEngine(QObject):
@@ -48,7 +26,7 @@ class AudioEngine(QObject):
 	def __init__(self, command_util: CommandUtil):
 		super().__init__()
 		self.command_util = command_util
-		self._load_worker: LoadWorker | None = None
+		self._current_shm: shared_memory.SharedMemory | None = None
 		self._pa = pyaudio.PyAudio()
 		self._stream = self._pa.open(
 			format=pyaudio.paFloat32,
@@ -71,39 +49,25 @@ class AudioEngine(QObject):
 			traceback.print_exc()
 			return (np.zeros(frame_count * 2, dtype=np.float32).tobytes(), pyaudio.paContinue)
 
-	def load_file(self, path: str):
-		raw_path = Path(path)
-		if self._load_worker is not None and self._load_worker.isRunning():
-			return
-		self._load_worker = LoadWorker(raw_path)
-		self._load_worker.progress.connect(self.on_progress)
-		self._load_worker.success.connect(self.on_success)
-		self._load_worker.error.connect(self._on_load_error)
-		self._load_worker.start()
+	def load_from_shared_memory(self, shm_name: str, sample_len: int):
+		"""Create AudioTrack from shared memory. Caller (GUI) does load/tempo/waveform."""
+		if self._current_shm is not None:
+			self._current_shm.close()
+			try:
+				self._current_shm.unlink()
+			except OSError:
+				pass
+			self._current_shm = None
 
-	def on_progress(self, progress: float):
-		self.command_util.send_status({"type": "load_progress", "progress": progress})
-
-	def on_success(self, status: tuple[AudioBuffer, float]):
-		buffer, tempo = status
-		self.track = AudioTrack(buffer, self.command_util)
+		shm = shared_memory.SharedMemory(name=shm_name)
+		self._current_shm = shm
+		arr = np.ndarray((sample_len * 2,), dtype=np.float32, buffer=shm.buf)
+		buffer_wrapper = _ShmBuffer(arr, sample_len)
+		self.track = AudioTrack(buffer_wrapper, self.command_util)
 		self.fileLoaded.emit()
 
-		# Compute waveform on RT process and send to main for display (audio data stays here)
-		waveform = buffer_to_waveform(buffer, width=1024)
-		self.command_util.send_status({
-			"type": "load_status",
-			"status": "success",
-			"waveform": waveform,
-			"duration": self.track.duration,
-			"tempo": tempo,
-		})
-	
 	def get_track(self) -> AudioTrack | None:
 		return self.track
-
-	def _on_load_error(self, msg: str):
-		print(f"Load error: {msg}")
 
 	def play_track(self):
 		if self.track is not None:
@@ -116,7 +80,7 @@ class AudioEngine(QObject):
 	def stop_track(self):
 		if self.track is not None:
 			self.track.playing = False
-			self.track.position = 0
+			self.track.seek(0)  # Reset position and propagate to source chain
 			self.command_util.send_status({"type": "track_stopped"})
 
 	def seek_track(self, position: float):

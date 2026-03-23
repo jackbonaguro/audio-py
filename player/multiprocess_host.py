@@ -48,7 +48,6 @@ def realtime_worker(cmd_q: mp.Queue, status_q: mp.Queue, log_q: mp.Queue):
 	except (PermissionError, AttributeError):
 		pass
 	
-	# Qt event loop required for LoadWorker signals to be delivered to engine slots
 	app = QCoreApplication([])
 
 	engine = AudioEngine(command_util)
@@ -95,10 +94,11 @@ def realtime_worker(cmd_q: mp.Queue, status_q: mp.Queue, log_q: mp.Queue):
 					engine.play_track()
 				elif cmd.get("command") == "pause":
 					engine.pause_track()
-				elif cmd.get("command") == "load_file":
-					path = cmd.get("path")
-					if path:
-						engine.load_file(path)
+				elif cmd.get("command") == "track_ready":
+					shm_name = cmd.get("shm_name")
+					sample_len = cmd.get("sample_len")
+					if shm_name is not None and sample_len is not None:
+						engine.load_from_shared_memory(shm_name, sample_len)
 				elif cmd.get("command") == "seek":
 					drain_and_apply("seek", "position", engine.seek_track, float(cmd["position"]) if cmd.get("position") is not None else None)
 				elif cmd.get("command") == "set_speed":

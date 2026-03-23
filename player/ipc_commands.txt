@@ -1,6 +1,6 @@
 # Main -> RT Commands
 
-load_file(path: str)
+track_ready(shm_name: str, sample_len: int)  # GUI loads file, sends shared memory ref
 play_track()
 pause_track()
 stop_track()
@@ -9,6 +9,9 @@ set_speed(speed: float) # 0.5 - 2.0
 set_pitch(pitch: float) # -12 - 12
 
 # RT -> Main Statuses
+track_stopped()
+
+# Main -> Main Statuses
 load_progress(progress: float) # 0.0 - 1.0
 load_status(
 	status: "success" | "error",
@@ -16,4 +19,3 @@ load_status(
 	duration: float,
 	tempo: float
 ) # waveform shape: (4096, 2)
-track_stopped()

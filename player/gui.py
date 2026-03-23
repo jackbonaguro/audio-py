@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 from pathlib import Path
 import numpy as np
 from fileSection import FileLayout
+from loadWorker import LoadWorker
 from waveFormSection import WaveformWidget
 from playbackSection import PlaybackSection
 
@@ -27,6 +28,7 @@ class MainWindow(QMainWindow):
 
 		# Set engine for dispatching calls
 		self.command_util = command_util
+		self._load_worker: LoadWorker | None = None
 
 		# Window meta
 		self.setWindowTitle("Jack's Mixer")
@@ -50,7 +52,15 @@ class MainWindow(QMainWindow):
 		self.setCentralWidget(central)
 
 	def load_file(self, path: Path):
-		self.command_util.send_command({"command": "load_file", "path": str(path)})
+		# self.command_util.send_command({"command": "load_file", "path": str(path)})
+		if self._load_worker is not None and self._load_worker.isRunning():
+			return
+		self._load_worker = LoadWorker(path, self.command_util)
+		self._load_worker.error.connect(self._on_load_error)
+		self._load_worker.start()
+
+	def _on_load_error(self, msg: str):
+		print(f"Load error: {msg}")
 
 	def on_waveform_ready(self, status):
 		"""Called when RT process sends precomputed waveform (multiprocess flow)."""
