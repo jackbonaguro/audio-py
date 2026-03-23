@@ -28,7 +28,8 @@ class PlaybackSection(QVBoxLayout):
 		self._updating_from_rt = False
 		self._user_dragging = False
 
-		self.addLayout(SpeedPitchSection(command_util))
+		self.speedPitchSection = SpeedPitchSection(command_util)
+		self.addLayout(self.speedPitchSection)
 
 		self.play_btn = QPushButton("▶️")
 		self.play_btn.clicked.connect(self.play)
@@ -43,32 +44,26 @@ class PlaybackSection(QVBoxLayout):
 		self.waveform_widget.seek_finished.connect(self._on_waveform_seek_finished)
 		self.addWidget(self.waveform_widget)
 
-		# Bottom status row: time (position), duration, tempo
+		# Bottom status row: time (position), duration
 		mono = QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
 		mono.setFixedPitch(True)
 		status_row = QHBoxLayout()
 		# Fixed widths to prevent layout shift when track loads (must accommodate placeholders)
 		fm = QFontMetrics(mono)
 		time_w = max(fm.horizontalAdvance("--:--"), fm.horizontalAdvance("99:59")) + 1 # IDK why but without this layout shifts
-		tempo_w = max(fm.horizontalAdvance("--"), fm.horizontalAdvance("999.9")) + 1
 		self.time_label = QLabel("--:--")
 		self.time_label.setFont(mono)
 		self.time_label.setMinimumWidth(time_w)
 		self.duration_label = QLabel("--:--")
 		self.duration_label.setFont(mono)
 		self.duration_label.setMinimumWidth(time_w)
-		self.tempo_label = QLabel("Tempo: ")
-		self.tempo_value_label = QLabel("--")
-		self.tempo_value_label.setFont(mono)
-		self.tempo_value_label.setMinimumWidth(tempo_w)
+
 		status_row.addWidget(QLabel("Time"))
 		status_row.addWidget(self.time_label)
 		status_row.addSpacing(16)
 		status_row.addWidget(QLabel("Duration"))
 		status_row.addWidget(self.duration_label)
 		status_row.addSpacing(16)
-		status_row.addWidget(self.tempo_label)
-		status_row.addWidget(self.tempo_value_label)
 		status_row.addStretch()
 		status_row.addWidget(self.play_btn)
 		status_row.addWidget(self.stop_btn)
@@ -99,8 +94,7 @@ class PlaybackSection(QVBoxLayout):
 		self.duration_label.setText(_format_time(self._duration))
 
 	def set_tempo(self, tempo: float):
-		self.tempo = max(0, tempo)
-		self.tempo_value_label.setText(f"{tempo:.1f}")
+		self.speedPitchSection.set_tempo(tempo)
 
 	def _on_waveform_seek(self, position: float):
 		self._user_dragging = True

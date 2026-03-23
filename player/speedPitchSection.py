@@ -1,5 +1,6 @@
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QSlider
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QFontDatabase, QFontMetrics
 
 from commandUtil import CommandUtil
 
@@ -32,10 +33,23 @@ class SpeedPitchSection(QHBoxLayout):
 		self.addWidget(self.pitch_slider)
 
 		# Master and Sync buttons (no behavior yet)
-		self.master_btn = QPushButton("Master")
+		self.master_btn = QPushButton("Main")
 		self.sync_btn = QPushButton("Sync")
+		self.reset_btn = QPushButton("Reset")
 		self.addWidget(self.master_btn)
 		self.addWidget(self.sync_btn)
+		self.addWidget(self.reset_btn)
+
+		mono = QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
+		mono.setFixedPitch(True)
+		fm = QFontMetrics(mono)
+		tempo_w = max(fm.horizontalAdvance("--"), fm.horizontalAdvance("999.9")) + 1
+		self.tempo_label = QLabel("Tempo: ")
+		self.tempo_value_label = QLabel("--")
+		self.tempo_value_label.setFont(mono)
+		self.tempo_value_label.setMinimumWidth(tempo_w)
+		self.addWidget(self.tempo_label)
+		self.addWidget(self.tempo_value_label)
 
 	def set_speed(self, value: int):
 		# Convert integer slider (-100..100) to float -1..1, then to log range 0.5..2.0
@@ -46,3 +60,7 @@ class SpeedPitchSection(QHBoxLayout):
 
 	def set_pitch(self, value: int):
 		self.command_util.send_command({"command": "set_pitch", "pitch": value})
+
+	def set_tempo(self, tempo: float):
+		self.tempo = max(0, tempo)
+		self.tempo_value_label.setText(f"{tempo:.1f}")

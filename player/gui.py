@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 
 from pathlib import Path
 import numpy as np
+from appState import AppState
 from fileSection import FileLayout
 from loadWorker import LoadWorker
 from waveFormSection import WaveformWidget
@@ -28,6 +29,7 @@ class MainWindow(QMainWindow):
 
 		# Set engine for dispatching calls
 		self.command_util = command_util
+		self.app_state = AppState()
 		self._load_worker: LoadWorker | None = None
 
 		# Window meta
@@ -37,6 +39,10 @@ class MainWindow(QMainWindow):
 		# Layout
 		self.layout = QVBoxLayout()
 		self.layout.setSpacing(12)
+
+		# Main tempo label
+		self.tempo_label = QLabel("Main tempo: ")
+		self.layout.addWidget(self.tempo_label)
 
 		# File section
 		self.file_layout = FileLayout()
