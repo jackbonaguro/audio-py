@@ -4,22 +4,33 @@ import rubberband
 from .audio_source import AudioSource
 
 
+def semitones_to_pitch_scale(semitones: float) -> float:
+    """Convert semitones to Rubber Band pitch scale. 0 -> 1.0, 12 -> 2.0 (one octave up)."""
+    return 2.0 ** (semitones / 12.0)
+
+
 class StretchedSource:
-    """Mono only. For stereo, create two instances and interleave pulls."""
+    """
+    Mono only. For stereo, create two instances and interleave pulls.
+    Uses Rubber Band's native pitch scaling for real-time safe pitch/speed changes.
+    """
 
     def __init__(
         self,
         sample_rate: int,
-        ratio: float,
-        source: AudioSource,
+        time_ratio: float = 1.0,
+        pitch_scale: float = 1.0,
+        source: AudioSource | None = None,
     ):
         self.source = source
         self.sample_rate = sample_rate
-        self.ratio = ratio
+        self.time_ratio = time_ratio
+        self.pitch_scale = pitch_scale
 
         opts = (
             rubberband.OPTION_PROCESS_REALTIME
             | rubberband.OPTION_ENGINE_FINER
+            | rubberband.OPTION_FORMANT_PRESERVED
         )
         self._opts = opts
 
@@ -29,14 +40,28 @@ class StretchedSource:
 
     def _init_stretcher(self):
         self.st = rubberband.RealTimeStretcher(
-            self.sample_rate, 1, self._opts, time_ratio=self.ratio, pitch_scale=1.0
+            self.sample_rate,
+            1,
+            self._opts,
+            time_ratio=self.time_ratio,
+            pitch_scale=self.pitch_scale,
         )
         pad = np.zeros(self.st.get_preferred_start_pad(), dtype=np.float32)
         self.st.process(pad, final=False)
 
-    def set_ratio(self, ratio: float):
-        self.ratio = ratio
-        self._init_stretcher()
+    def set_time_ratio(self, time_ratio: float):
+        """Update playback speed. Real-time safe; does not reset buffers."""
+        self.time_ratio = time_ratio
+        self.st.set_time_ratio(time_ratio)
+
+    def set_pitch_scale(self, pitch_scale: float):
+        """Update pitch. Real-time safe; does not reset buffers."""
+        self.pitch_scale = pitch_scale
+        self.st.set_pitch_scale(pitch_scale)
+
+    def set_pitch_semitones(self, semitones: float):
+        """Update pitch in semitones. 0 = no change, 12 = one octave up."""
+        self.set_pitch_scale(semitones_to_pitch_scale(semitones))
 
     def seek(self, pos: int):
         """Seek to frame position. Resets stretcher and seeks underlying source."""

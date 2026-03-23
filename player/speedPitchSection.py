@@ -24,11 +24,11 @@ class SpeedPitchSection(QHBoxLayout):
 		# Pitch adjust slider
 		self.pitch_label = QLabel("Pitch")
 		self.pitch_slider = QSlider(Qt.Orientation.Horizontal)
-		self.pitch_slider.setRange(-12, 12)
+		self.pitch_slider.setRange(-1200, 1200)
 		self.pitch_slider.setValue(0)
-		self.pitch_slider.valueChanged.connect(self.set_pitch)
+		self.pitch_slider.setTickInterval(100)
 		self.pitch_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
-		self.pitch_slider.setTickInterval(1)
+		self.pitch_slider.valueChanged.connect(self.set_pitch)
 		self.addWidget(self.pitch_label)
 		self.addWidget(self.pitch_slider)
 
@@ -59,7 +59,8 @@ class SpeedPitchSection(QHBoxLayout):
 		self.command_util.send_command({"command": "set_speed", "speed": speed})
 
 	def set_pitch(self, value: int):
-		self.command_util.send_command({"command": "set_pitch", "pitch": value})
+		pitch = value / 100.0
+		self.command_util.send_command({"command": "set_pitch", "pitch": pitch})
 
 	def set_tempo(self, tempo: float):
 		self.tempo = max(0, tempo)

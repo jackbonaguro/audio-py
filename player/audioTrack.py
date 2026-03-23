@@ -3,7 +3,6 @@ import numpy as np
 from commandUtil import CommandUtil
 
 from sources.raw_data_source import RawDataSource
-from sources.resample_source import ResampleSource
 from sources.stretched_source import StretchedSource
 from sources.audio_source import AudioSource
 
@@ -28,8 +27,7 @@ class AudioTrack:
 		self.playing = False
 		self.looping = False
 		self.speed = 1.0
-		self.pitch = 1.0
-		self.ratio = 1.0
+		self.pitch_semitones = 0.0
 
 	SAMPLE_RATE = 44100
 
@@ -48,37 +46,37 @@ class AudioTrack:
 
 		self.raw_left = RawDataSource(self.channels[0])
 		self.raw_right = RawDataSource(self.channels[1])
-		self.stretched_left = StretchedSource(self.SAMPLE_RATE, self.speed, self.raw_left)
-		self.stretched_right = StretchedSource(self.SAMPLE_RATE, self.speed, self.raw_right)
-		self.resampled_left = ResampleSource(self.stretched_left, self.speed)
-		self.resampled_right = ResampleSource(self.stretched_right, self.speed)
-		self.source_left = self.resampled_left
-		self.source_right = self.resampled_right
+		time_ratio = 1.0 / self.speed
+		pitch_scale = 2.0 ** (self.pitch_semitones / 12.0)
+		self.stretched_left = StretchedSource(
+			self.SAMPLE_RATE, time_ratio, pitch_scale, self.raw_left
+		)
+		self.stretched_right = StretchedSource(
+			self.SAMPLE_RATE, time_ratio, pitch_scale, self.raw_right
+		)
+		self.source_left = self.stretched_left
+		self.source_right = self.stretched_right
 
 	def seek(self, position_seconds: float):
 		"""Seek to position in seconds."""
 		pos_frames = int(position_seconds * self.SAMPLE_RATE)
 		self.position = max(0, min(pos_frames, self.total_frames))
-		# Must seek through full chain: ResampleSource clears its buffer,
-		# StretchedSource resets rubberband state. Seeking only raw sources
-		# leaves stale data in intermediate buffers → channel desync / echo.
+		# Must seek through full chain: StretchedSource resets rubberband state.
 		self.source_left.seek(self.position)
 		self.source_right.seek(self.position)
 
 	def set_speed(self, speed: float):
+		"""Update playback speed. Real-time safe."""
 		self.speed = speed
-		self.ratio = self.pitch / self.speed
-		self.stretched_left.set_ratio(self.ratio)
-		self.stretched_right.set_ratio(self.ratio)
-	
+		time_ratio = 1.0 / speed
+		self.stretched_left.set_time_ratio(time_ratio)
+		self.stretched_right.set_time_ratio(time_ratio)
+
 	def set_pitch(self, pitch_semitones: float):
-		"""Set pitch in semitones (-12 to 12). 0 = no change, 12 = one octave up."""
-		self.pitch = 2 ** (pitch_semitones / 12.0)
-		self.ratio = self.pitch / self.speed
-		self.stretched_left.set_ratio(self.ratio)
-		self.stretched_right.set_ratio(self.ratio)
-		self.resampled_left.set_ratio(self.pitch)
-		self.resampled_right.set_ratio(self.pitch)
+		"""Set pitch in semitones (-12 to 12). 0 = no change, 12 = one octave up. Real-time safe."""
+		self.pitch_semitones = pitch_semitones
+		self.stretched_left.set_pitch_semitones(pitch_semitones)
+		self.stretched_right.set_pitch_semitones(pitch_semitones)
 
 	# If track is paused we provide zeros, otherwise we provide samples from the track and advance position accordingly.
 	# When we reach the end of the buffer, we loop back to the start.
