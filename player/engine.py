@@ -122,7 +122,7 @@ class AudioEngine(QObject):
 			return np.zeros(frame_count * 2, dtype=np.float32)
 		stereo = self.track.get_samples(frame_count)
 		if self.on_position_update is not None:
-			self.on_position_update(self.track.position)
+			self.on_position_update(self.track.position / self.track.SAMPLE_RATE)
 		return stereo
 
 	# IPC Signals
