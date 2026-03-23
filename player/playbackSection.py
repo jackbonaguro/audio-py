@@ -1,4 +1,3 @@
-from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QHBoxLayout, QPushButton, QSlider, QVBoxLayout, QLabel
 from PySide6.QtCore import Qt
 
@@ -19,24 +18,26 @@ class PlaybackSection(QVBoxLayout):
 		btn_row = QHBoxLayout()
 
 		# Logarithmic playback speed adjust slider
-		self.adjust_lower_label = QLabel("0.5")
-		self.adjust_upper_label = QLabel("2.0")
-		self.speed_value_label = QLabel("(1.0)")
-		font = QFont()
-		font.setStyleHint(QFont.StyleHint.Monospace)
-		font.setFixedPitch(True)
-		self.speed_value_label.setFont(font)
-		self.adjust_speed_slider = QSlider(Qt.Orientation.Horizontal)
-		self.adjust_speed_slider.setRange(-100, 100)
-		self.adjust_speed_slider.setValue(0)
-		self.adjust_speed_slider.valueChanged.connect(self.set_speed)
-		self.adjust_speed_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
-		self.adjust_speed_slider.setTickInterval(10)
+		self.speed_label = QLabel("Speed")
+		self.speed_slider = QSlider(Qt.Orientation.Horizontal)
+		self.speed_slider.setRange(-100, 100)
+		self.speed_slider.setValue(0)
+		self.speed_slider.valueChanged.connect(self.set_speed)
+		self.speed_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
+		self.speed_slider.setTickInterval(10)
+		btn_row.addWidget(self.speed_label)
+		btn_row.addWidget(self.speed_slider)
 
-		btn_row.addWidget(self.adjust_lower_label)
-		btn_row.addWidget(self.adjust_speed_slider)
-		btn_row.addWidget(self.speed_value_label)
-		btn_row.addWidget(self.adjust_upper_label)
+		# Pitch adjust slider
+		self.pitch_label = QLabel("Pitch")
+		self.pitch_slider = QSlider(Qt.Orientation.Horizontal)
+		self.pitch_slider.setRange(-12, 12)
+		self.pitch_slider.setValue(0)
+		self.pitch_slider.valueChanged.connect(self.set_pitch)
+		self.pitch_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
+		self.pitch_slider.setTickInterval(1)
+		btn_row.addWidget(self.pitch_label)
+		btn_row.addWidget(self.pitch_slider)
 
 		self.play_btn = QPushButton("▶️")
 		self.play_btn.clicked.connect(self.play)
@@ -127,5 +128,7 @@ class PlaybackSection(QVBoxLayout):
 		# 2^x maps (-1, 0, 1) -> (0.5, 1.0, 2.0)
 		x = value / 100.0
 		speed = 2 ** x
-		self.speed_value_label.setText(f"({speed:.1f})")
 		self.command_util.send_command({"command": "set_speed", "speed": speed})
+
+	def set_pitch(self, value: int):
+		self.command_util.send_command({"command": "set_pitch", "pitch": value})

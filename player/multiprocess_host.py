@@ -83,11 +83,30 @@ def realtime_worker(cmd_q: mp.Queue, status_q: mp.Queue, log_q: mp.Queue):
 				elif cmd.get("command") == "seek":
 					pos = cmd.get("position")
 					if pos is not None:
-						engine.seek_track(float(pos))
+						target = float(pos)
+						deferred = []
+						while True:
+							# Don't directly pass seek commands, as there'll be too many to process in real time
+							# Instead, gather all seek commands in the queue and seek to the last one
+							try:
+								c = cmd_q.get_nowait()
+								if c.get("command") == "seek" and c.get("position") is not None:
+									target = float(c["position"])
+								else:
+									deferred.append(c)
+							except mp.queues.Empty:
+								break
+						engine.seek_track(target)
+						for c in deferred:
+							cmd_q.put(c)
 				elif cmd.get("command") == "set_speed":
 					speed = cmd.get("speed")
 					if speed is not None:
 						engine.set_track_speed(float(speed))
+				elif cmd.get("command") == "set_pitch":
+					pitch = cmd.get("pitch")
+					if pitch is not None:
+						engine.set_track_pitch(float(pitch))
 			except mp.queues.Empty:
 				pass
 

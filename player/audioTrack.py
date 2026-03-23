@@ -59,8 +59,11 @@ class AudioTrack:
 		"""Seek to position in seconds."""
 		pos_frames = int(position_seconds * self.SAMPLE_RATE)
 		self.position = max(0, min(pos_frames, self.total_frames))
-		self.raw_left.seek(self.position)
-		self.raw_right.seek(self.position)
+		# Must seek through full chain: ResampleSource clears its buffer,
+		# StretchedSource resets rubberband state. Seeking only raw sources
+		# leaves stale data in intermediate buffers → channel desync / echo.
+		self.source_left.seek(self.position)
+		self.source_right.seek(self.position)
 
 	def set_speed(self, speed: float):
 		self.speed = speed
@@ -68,8 +71,9 @@ class AudioTrack:
 		self.stretched_left.set_ratio(self.ratio)
 		self.stretched_right.set_ratio(self.ratio)
 	
-	def set_pitch(self, pitch: float):
-		self.pitch = pitch
+	def set_pitch(self, pitch_semitones: float):
+		"""Set pitch in semitones (-12 to 12). 0 = no change, 12 = one octave up."""
+		self.pitch = 2 ** (pitch_semitones / 12.0)
 		self.ratio = self.pitch / self.speed
 		self.stretched_left.set_ratio(self.ratio)
 		self.stretched_right.set_ratio(self.ratio)

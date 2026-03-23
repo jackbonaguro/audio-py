@@ -26,6 +26,10 @@ class ResampleSource:
         self.buffer = np.array([], dtype=np.float32)
         self.finished = False
 
+    def set_ratio(self, pitch_ratio: float):
+        """Update pitch ratio for live pitch shifting."""
+        self.pitch_ratio = pitch_ratio
+
     def seek(self, pos: int):
         """Seek to frame position. Clears buffer and seeks underlying source."""
         self.source.seek(pos)
