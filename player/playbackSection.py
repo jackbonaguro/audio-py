@@ -31,10 +31,12 @@ class PlaybackSection(QVBoxLayout):
 		self.speedPitchSection = SpeedPitchSection(command_util)
 		self.addLayout(self.speedPitchSection)
 
-		self.play_btn = QPushButton("▶️")
+		self.play_btn = QPushButton("▶")
+		self.play_btn.setFixedWidth(32)
 		self.play_btn.clicked.connect(self.play)
 		self.play_btn.setEnabled(False)
-		self.stop_btn = QPushButton("⏹️")
+		self.stop_btn = QPushButton("⏹")
+		self.stop_btn.setFixedWidth(32)
 		self.stop_btn.clicked.connect(self.stop)
 		self.stop_btn.setEnabled(False)
 
@@ -126,13 +128,13 @@ class PlaybackSection(QVBoxLayout):
 			self.playing = True
 			self.command_util.send_command({"command": "play"})
 			self.stop_btn.setEnabled(True)
-			self.play_btn.setText("⏸️")
+			self.play_btn.setText("⏸")
 		else:
 			self.playing = False
 			self.command_util.send_command({"command": "pause"})
 			self.play_btn.setEnabled(True)
 			self.stop_btn.setEnabled(True)
-			self.play_btn.setText("▶️")
+			self.play_btn.setText("▶")
 
 	def stop(self):
 		self.command_util.send_command({"command": "stop"})
@@ -143,7 +145,7 @@ class PlaybackSection(QVBoxLayout):
 		self.playing = False
 		self.play_btn.setEnabled(True)
 		self.stop_btn.setEnabled(False)
-		self.play_btn.setText("▶️")
+		self.play_btn.setText("▶")
 		self._position = 0.0
 		self.time_label.setText(_format_time(0))
 		self.waveform_widget.update_position(0)

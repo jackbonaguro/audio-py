@@ -5,8 +5,34 @@ soundtouch (C++ only)
 librosa (also based on stft)
 
 All Open Source Tempo Detection Algorithms
-librosa
+librosa -- update: working good for just tempo. Will see about multi-section songs & peak detection.
 essentia (essentia.upf.edu)
 
 See if I can get multiple numpy versions (v1 for rubberband, v2 for everything else):
 https://github.com/astral-sh/uv/issues/6981
+
+
+2026-03-23
+- Multi-track
+	- Abstract out everything related to a track in GUI land
+	- Make all statuses / commands use track id
+	- Main track system
+- Create a real mixer, may also need to make a limiter
+	- Independent volume control per track
+	- Solo / Mute
+- Analysis
+	- Save DB file
+	- Analyse and save tempo
+	- Analyse and save peak offset from beginning of section
+	- Analyse multiple independent sections
+	- Analyse key, likewise multiple sections (key change)
+- Loader
+	- Select file, load into track
+	- Show tempo, key, metadata (artist / title)
+- CPU Meter
+- Memory Meter
+- Sync
+	- Pull-based sources are getting out of sync I suspect
+	- Will only really be fixed by a master clock, with periodic adjustments to raw data's position
+
+With the above, it won't be performance-ready. But it will be demonstrable. It will still need at a minimum EQ, movement by beats, analysis by EQ, looping, and routing / monitoring. No plan to implement FX for now.

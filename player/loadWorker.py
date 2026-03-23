@@ -45,11 +45,12 @@ class LoadWorker(QThread):
 				return
 
 			buf = buffer[0]
-			sample_len = buf.sample_len
+			# Use actual decoded length; ffprobe duration can differ from ffmpeg output
+			sample_len = buf.write_pos // 2  # stereo frames
 			duration = sample_len / 44100.0
 
 			# Heavy work: tempo and waveform (off the RT process)
-			tempo = TempoDetector().detect(buf.buffer)
+			tempo = TempoDetector().detect(buf.buffer[:buf.write_pos])
 			waveform = buffer_to_waveform(buf, width=1024)
 
 			# Copy into shared memory for RT process
@@ -57,7 +58,7 @@ class LoadWorker(QThread):
 			shm_name = f"audio_{uuid.uuid4().hex[:12]}"
 			shm = shared_memory.SharedMemory(create=True, size=n_bytes, name=shm_name)
 			arr = np.ndarray((sample_len * 2,), dtype=np.float32, buffer=shm.buf)
-			arr[:] = buf.buffer[: buf.write_pos]
+			arr[:] = buf.buffer[:buf.write_pos]
 
 			# RT process attaches and creates AudioTrack; GUI gets waveform/tempo
 			self.command_util.send_command({
