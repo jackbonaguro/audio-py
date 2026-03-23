@@ -43,9 +43,9 @@ class SpeedPitchSection(QHBoxLayout):
 		mono = QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
 		mono.setFixedPitch(True)
 		fm = QFontMetrics(mono)
-		tempo_w = max(fm.horizontalAdvance("--"), fm.horizontalAdvance("999.9")) + 1
+		tempo_w = max(fm.horizontalAdvance("---.-"), fm.horizontalAdvance("999.9")) + 1
 		self.tempo_label = QLabel("Tempo: ")
-		self.tempo_value_label = QLabel("--")
+		self.tempo_value_label = QLabel("---.-")
 		self.tempo_value_label.setFont(mono)
 		self.tempo_value_label.setMinimumWidth(tempo_w)
 		self.addWidget(self.tempo_label)
@@ -64,4 +64,4 @@ class SpeedPitchSection(QHBoxLayout):
 
 	def set_tempo(self, tempo: float):
 		self.tempo = max(0, tempo)
-		self.tempo_value_label.setText(f"{tempo:.1f}")
+		self.tempo_value_label.setText(f"{tempo:03.1f}")

@@ -13,7 +13,7 @@ def _format_time(seconds: float) -> str:
 		return "--:--"
 	m = int(seconds // 60)
 	s = int(seconds % 60)
-	return f"{m}:{s:02d}"
+	return f"{m:02d}:{s:02d}"
 
 
 class PlaybackSection(QVBoxLayout):
