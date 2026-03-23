@@ -8,7 +8,7 @@ dependencies = [
     "numpy==1.26.4",
     "pyaudio",
     "PySide6",
-    "rubberband>=1.0.2",
+    "rubberband @ file:///Users/jack/Documents/rband/py",
     "scipy>=1.10",
     "soundfile>=0.13.1",
     "stftpitchshift>=2.0",

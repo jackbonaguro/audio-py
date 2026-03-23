@@ -11,7 +11,7 @@ play_position = 0
 def main():
 	global audio_buffer, play_position
 	# Load file's data into numpy array
-	audio, sample_rate = soundfile.read("./gravity.mp3")
+	audio, sample_rate = soundfile.read("./rubberband_exp/gravity.mp3")
 	print(audio.shape)
 
 	# Apply time stretch with ratio that produces inverted semitone repitch after resampling

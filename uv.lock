@@ -26,7 +26,7 @@ requires-dist = [
     { name = "numpy", specifier = "==1.26.4" },
     { name = "pyaudio" },
     { name = "pyside6" },
-    { name = "rubberband", specifier = ">=1.0.2" },
+    { name = "rubberband", directory = "/Users/jack/Documents/rband/py" },
     { name = "scipy", specifier = ">=1.10" },
     { name = "soundfile", specifier = ">=0.13.1" },
     { name = "stftpitchshift", specifier = ">=2.0" },
@@ -790,8 +790,7 @@ wheels = [
 [[package]]
 name = "rubberband"
 version = "1.0.2"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/28/40/955257a03c46146fe2fc523323bbf9f0a7dbc84812dc4f0161c622b0a951/rubberband-1.0.2.tar.gz", hash = "sha256:c569c1017be16f712a26cce45914ee6da3832f062fedd2aa08e2377580a93e12", size = 99425, upload-time = "2020-04-18T23:07:04.635Z" }
+source = { directory = "/Users/jack/Documents/rband/py" }
 
 [[package]]
 name = "scipy"
