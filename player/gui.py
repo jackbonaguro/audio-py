@@ -40,9 +40,14 @@ class MainWindow(QMainWindow):
 		self.layout = QVBoxLayout()
 		self.layout.setSpacing(12)
 
-		# Main tempo label
-		self.tempo_label = QLabel("Main tempo: ")
-		self.layout.addWidget(self.tempo_label)
+		# Main track label
+		main_track_row = QHBoxLayout()
+		self.main_label = QLabel("Main track: ")
+		self.main_value_label = QLabel("--")
+		main_track_row.addWidget(self.main_label)
+		main_track_row.addWidget(self.main_value_label)
+		main_track_row.addStretch()
+		self.layout.addLayout(main_track_row)
 
 		# File section
 		self.file_layout = FileLayout()
