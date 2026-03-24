@@ -18,7 +18,7 @@ class FileLayout(QVBoxLayout):
 
 		self.file_edit = QLineEdit()
 		self.file_edit.setPlaceholderText("Select an audio file...")
-		_default = Path(__file__).resolve().parent / "gravity.mp3"
+		_default = Path(__file__).resolve().parent / "burn.mp3"
 		self.file_edit.setText(str(_default) if _default.exists() else "")
 		self.file_edit.setReadOnly(True)
 		self.file_edit.setFixedWidth(200)
