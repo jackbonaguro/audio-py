@@ -1,10 +1,12 @@
 from typing import Callable
 
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QSlider
+from PySide6.QtWidgets import QHBoxLayout, QPushButton, QSlider
+
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QFontDatabase, QFontMetrics
 
 from commandUtil import CommandUtil
+
+from .label_value import LabelValuePair
 
 
 class StretchControls(QHBoxLayout):
@@ -62,16 +64,8 @@ class StretchControls(QHBoxLayout):
 		self.addWidget(self.main_btn)
 		self.addWidget(self.sync_btn)
 
-		mono = QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
-		mono.setFixedPitch(True)
-		fm = QFontMetrics(mono)
-		tempo_w = max(fm.horizontalAdvance("---.-"), fm.horizontalAdvance("999.9")) + 1
-		self.tempo_label = QLabel("Tempo: ")
-		self.tempo_value_label = QLabel("---.-")
-		self.tempo_value_label.setFont(mono)
-		self.tempo_value_label.setMinimumWidth(tempo_w)
-		self.addWidget(self.tempo_label)
-		self.addWidget(self.tempo_value_label)
+		self.tempo_pair = LabelValuePair("Tempo: ", ["---.-", "999.9"])
+		self.addWidget(self.tempo_pair)
 
 	SPEED_DEFAULT = 0
 	PITCH_DEFAULT = 0
@@ -105,8 +99,7 @@ class StretchControls(QHBoxLayout):
 		self.pitch_slider.setEnabled(enabled)
 		self.main_btn.setEnabled(enabled)
 		self.sync_btn.setEnabled(enabled)
-		self.tempo_label.setEnabled(enabled)
-		self.tempo_value_label.setEnabled(enabled)
+		self.tempo_pair.set_enabled(enabled)
 
 	def set_speed(self, value: int):
 		# Convert integer slider (-100..100) to float -1..1, then to log range 0.5..2.0
@@ -119,13 +112,13 @@ class StretchControls(QHBoxLayout):
 	def _update_tempo_display(self):
 		"""Display tempo = original tempo scaled by current speed ratio."""
 		if self._original_tempo is None:
-			self.tempo_value_label.setText("---.-")
+			self.tempo_pair.set_text("---.-")
 			if self._on_effective_tempo_changed:
 				self._on_effective_tempo_changed(None)
 			return
 		speed = 2 ** (self.speed_slider.value() / 100.0)
 		effective_tempo = self._original_tempo * speed
-		self.tempo_value_label.setText(f"{effective_tempo:03.1f}")
+		self.tempo_pair.set_text(f"{effective_tempo:03.1f}")
 		if self._on_effective_tempo_changed:
 			self._on_effective_tempo_changed(effective_tempo)
 

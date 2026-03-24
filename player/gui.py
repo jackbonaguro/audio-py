@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
 from pathlib import Path
 
 from appState import AppState
-from components import FileLayout, TrackComponent
+from components import FileLayout, LabelValuePair, TrackComponent
 from loadWorker import LoadWorker
 
 from commandUtil import CommandUtil
@@ -42,16 +42,13 @@ class MainWindow(QMainWindow):
 
 		# Main track label
 		main_track_row = QHBoxLayout()
-		self.main_label = QLabel("Main track: ")
-		self.main_value_label = QLabel("--")
-		self.main_tempo_label = QLabel("Tempo: ")
-		self.main_tempo_value_label = QLabel("---.-")
-		self.main_tempo_value_label.setMinimumWidth(50)
-		self.main_tempo_label.setToolTip("Main track playback tempo")
-		main_track_row.addWidget(self.main_label)
-		main_track_row.addWidget(self.main_value_label)
-		main_track_row.addWidget(self.main_tempo_label)
-		main_track_row.addWidget(self.main_tempo_value_label)
+		self.main_track_pair = LabelValuePair("Main track: ", ["--", "A", "B"])
+		self.main_tempo_pair = LabelValuePair(
+			"Tempo: ", ["---.-", "999.9"],
+			tooltip="Main track playback tempo",
+		)
+		main_track_row.addWidget(self.main_track_pair)
+		main_track_row.addWidget(self.main_tempo_pair)
 		main_track_row.addStretch()
 		self.layout.addLayout(main_track_row)
 
@@ -111,10 +108,10 @@ class MainWindow(QMainWindow):
 	def _on_main_track_changed(self):
 		main = self.app_state.main_track
 		if main is None:
-			self.main_value_label.setText("--")
+			self.main_track_pair.set_text("--")
 			self.app_state.main_tempo = None
 		else:
-			self.main_value_label.setText("A" if main == 0 else "B")
+			self.main_track_pair.set_text("A" if main == 0 else "B")
 			track = self.tracks[main]
 			self.app_state.main_tempo = track.get_effective_tempo()
 		self._update_main_tempo_display()
@@ -131,9 +128,9 @@ class MainWindow(QMainWindow):
 
 	def _update_main_tempo_display(self):
 		if self.app_state.main_tempo is not None:
-			self.main_tempo_value_label.setText(f"({self.app_state.main_tempo:.1f}")
+			self.main_tempo_pair.set_text(f"{self.app_state.main_tempo:.1f}")
 		else:
-			self.main_tempo_value_label.setText("---.-")
+			self.main_tempo_pair.set_text("---.-")
 
 	def on_waveform_ready(self, status):
 		"""Called when RT process sends precomputed waveform (multiprocess flow)."""

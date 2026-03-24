@@ -1,11 +1,12 @@
 from typing import Callable
 
-from PySide6.QtWidgets import QHBoxLayout, QPushButton, QVBoxLayout, QLabel
+from PySide6.QtWidgets import QHBoxLayout, QPushButton, QVBoxLayout
+
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont, QFontDatabase, QFontMetrics
 
 from commandUtil import CommandUtil
 
+from .label_value import LabelValuePair
 from .stretch_controls import StretchControls
 from .waveform import WaveformWidget
 
@@ -79,32 +80,20 @@ class TrackComponent(QVBoxLayout):
 		self.addWidget(self.waveform_widget)
 
 		# Bottom status row: time (position), duration
-		mono = QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
-		mono.setFixedPitch(True)
 		status_row = QHBoxLayout()
-		fm = QFontMetrics(mono)
-		time_w = max(fm.horizontalAdvance("--:--"), fm.horizontalAdvance("99:59")) + 1
-		self.time_label = QLabel("--:--")
-		self.time_label.setFont(mono)
-		self.time_label.setMinimumWidth(time_w)
-		self.duration_label = QLabel("--:--")
-		self.duration_label.setFont(mono)
-		self.duration_label.setMinimumWidth(time_w)
+		time_samples = ["--:--", "99:59"]
+		self.time_pair = LabelValuePair("Time ", time_samples)
+		self.duration_pair = LabelValuePair("Duration ", time_samples)
+		self.original_tempo_pair = LabelValuePair(
+			"OG: ", ["---.-", "999.9"],
+			tooltip="Original tempo (BPM)",
+		)
 
-		status_row.addWidget(QLabel("Time"))
-		status_row.addWidget(self.time_label)
+		status_row.addWidget(self.time_pair)
 		status_row.addSpacing(16)
-		status_row.addWidget(QLabel("Duration"))
-		status_row.addWidget(self.duration_label)
+		status_row.addWidget(self.duration_pair)
 		status_row.addSpacing(16)
-
-		status_row.addWidget(QLabel("OG: "))
-		orig_tempo_w = max(fm.horizontalAdvance("---.-"), fm.horizontalAdvance("999.9")) + 1
-		self.original_tempo_label = QLabel("---.-")
-		self.original_tempo_label.setFont(mono)
-		self.original_tempo_label.setMinimumWidth(orig_tempo_w)
-		self.original_tempo_label.setToolTip("Original tempo (BPM)")
-		status_row.addWidget(self.original_tempo_label)
+		status_row.addWidget(self.original_tempo_pair)
 		status_row.addSpacing(16)
 		status_row.addStretch()
 		status_row.addWidget(self.play_btn)
@@ -131,7 +120,7 @@ class TrackComponent(QVBoxLayout):
 		self.stretch_controls.set_enabled(enabled)
 		self.play_btn.setEnabled(enabled)
 		self.waveform_widget.setEnabled(enabled)
-		self.original_tempo_label.setEnabled(enabled)
+		self.original_tempo_pair.set_enabled(enabled)
 
 	def set_main_state(self, is_main: bool):
 		self.stretch_controls.set_main_state(is_main)
@@ -148,14 +137,14 @@ class TrackComponent(QVBoxLayout):
 	def set_duration(self, duration: float):
 		self._duration = max(0, duration)
 		self.waveform_widget.set_duration(duration)
-		self.duration_label.setText(_format_time(self._duration))
+		self.duration_pair.set_text(_format_time(self._duration))
 
 	def set_tempo(self, tempo: float):
 		self._original_tempo = max(0, tempo)
 		if self._original_tempo is not None and self._original_tempo > 0:
-			self.original_tempo_label.setText(f"{self._original_tempo:03.1f}")
+			self.original_tempo_pair.set_text(f"{self._original_tempo:03.1f}")
 		else:
-			self.original_tempo_label.setText(f"---.-")
+			self.original_tempo_pair.set_text("---.-")
 		self.stretch_controls.set_tempo(tempo)
 
 	def _on_waveform_seek(self, position: float):
@@ -164,7 +153,7 @@ class TrackComponent(QVBoxLayout):
 			return
 		pos = max(0.0, min(self._duration, position))
 		self._position = pos
-		self.time_label.setText(_format_time(pos))
+		self.time_pair.set_text(_format_time(pos))
 		self._scoped_commands.send_command({"command": "seek", "position": pos})
 		self.waveform_widget.update_position(pos)
 
@@ -177,7 +166,7 @@ class TrackComponent(QVBoxLayout):
 			return
 		self._updating_from_rt = True
 		self._position = position
-		self.time_label.setText(_format_time(position))
+		self.time_pair.set_text(_format_time(position))
 		if self._duration > 0:
 			self.waveform_widget.update_position(position)
 		self._updating_from_rt = False
@@ -206,5 +195,5 @@ class TrackComponent(QVBoxLayout):
 		self.stop_btn.setEnabled(False)
 		self.play_btn.setText("▶")
 		self._position = 0.0
-		self.time_label.setText(_format_time(0))
+		self.time_pair.set_text(_format_time(0))
 		self.waveform_widget.update_position(0)
