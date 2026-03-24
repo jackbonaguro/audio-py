@@ -6,6 +6,7 @@ from PySide6.QtCore import Qt, QTimer, Signal
 from audioBuffer import AudioBuffer
 from waveformUtil import buffer_to_waveform
 
+
 class WaveformWidget(QWidget):
 	"""Paints a waveform from preloaded PCM chunks."""
 
@@ -96,7 +97,7 @@ class WaveformWidget(QWidget):
 		h = max(80, self.height())
 		img = QImage(w, h, QImage.Format.Format_ARGB32)
 		img.fill(QColor.fromRgba(0xFFF0))
-	
+
 		mid, amp = h / 2, (h / 2) * 0.95
 		pen = QPen(QColor(100, 180, 255))
 		pen.setWidth(1)

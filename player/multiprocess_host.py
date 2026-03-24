@@ -52,9 +52,9 @@ def realtime_worker(cmd_q: mp.Queue, status_q: mp.Queue, log_q: mp.Queue):
 
 	engine = AudioEngine(command_util)
 
-	def on_position_update(position: float):
+	def on_position_update(position: float, track_id: int):
 		try:
-			status_q.put_nowait({"type": "position", "position": position})
+			status_q.put_nowait({"type": "position", "position": position, "track_id": track_id})
 		except mp.queues.Full:
 			pass
 
@@ -87,24 +87,37 @@ def realtime_worker(cmd_q: mp.Queue, status_q: mp.Queue, log_q: mp.Queue):
 				cmd = cmd_q.get_nowait()
 				if cmd.get("command") == "quit":
 					state["running"] = False
+					# Clean up shared memory before exit to avoid resource_tracker warnings
+					if engine._current_shm is not None:
+						try:
+							engine.tracks.clear()
+							engine._current_shm.close()
+							engine._current_shm.unlink()
+						except Exception:
+							pass
+						engine._current_shm = None
 					app.quit()
 				elif cmd.get("command") == "stop":
-					engine.stop_track()
+					engine.stop_track(cmd.get("track_id"))
 				elif cmd.get("command") == "play":
-					engine.play_track()
+					engine.play_track(cmd.get("track_id"))
 				elif cmd.get("command") == "pause":
-					engine.pause_track()
+					engine.pause_track(cmd.get("track_id"))
 				elif cmd.get("command") == "track_ready":
 					shm_name = cmd.get("shm_name")
 					sample_len = cmd.get("sample_len")
-					if shm_name is not None and sample_len is not None:
-						engine.load_from_shared_memory(shm_name, sample_len)
+					track_id = cmd.get("track_id")
+					if shm_name is not None and sample_len is not None and track_id is not None:
+						engine.load_from_shared_memory(shm_name, sample_len, track_id)
 				elif cmd.get("command") == "seek":
-					drain_and_apply("seek", "position", engine.seek_track, float(cmd["position"]) if cmd.get("position") is not None else None)
+					position = cmd.get("position")
+					drain_and_apply("seek", "position", lambda position: engine.seek_track(cmd.get("track_id"), position), position)
 				elif cmd.get("command") == "set_speed":
-					drain_and_apply("set_speed", "speed", engine.set_track_speed, float(cmd["speed"]) if cmd.get("speed") is not None else None)
+					speed = cmd.get("speed")
+					drain_and_apply("set_speed", "speed", lambda speed: engine.set_track_speed(cmd.get("track_id"), speed), speed)
 				elif cmd.get("command") == "set_pitch":
-					drain_and_apply("set_pitch", "pitch", engine.set_track_pitch, float(cmd["pitch"]) if cmd.get("pitch") is not None else None)
+					pitch = cmd.get("pitch")
+					drain_and_apply("set_pitch", "pitch", lambda pitch: engine.set_track_pitch(cmd.get("track_id"), pitch), pitch)
 			except mp.queues.Empty:
 				pass
 
@@ -117,11 +130,14 @@ def realtime_worker(cmd_q: mp.Queue, status_q: mp.Queue, log_q: mp.Queue):
 
 	app.exec()
 
+_SHUTDOWN_SENTINEL = "_shutdown"  # Picklable sentinel for GuiQThread
+
+
 class GuiQThread(QThread):
 	waveform_ready = Signal(object)
 	load_progress = Signal(float)
-	position_received = Signal(float)
-	track_stopped = Signal()
+	position_received = Signal(object)  # status dict: {position, track_id?}
+	track_stopped = Signal(object)      # status dict: {track_id?}
 
 	def __init__(self, command_util: CommandUtil, main_window: MainWindow):
 		super().__init__()
@@ -132,15 +148,17 @@ class GuiQThread(QThread):
 		while True:
 			try:
 				status = self.command_util.status_queue.get(timeout=0.1)
+				if status == _SHUTDOWN_SENTINEL:
+					return
 				type = status.get("type")
 				if type == "position":
-					self.position_received.emit(status.get("position"))
+					self.position_received.emit(status)
 				if type == "load_progress":
 					self.load_progress.emit(status.get("progress"))
 				if type == "load_status":
 					self.waveform_ready.emit(status)
 				if type == "track_stopped":
-					self.track_stopped.emit()
+					self.track_stopped.emit(status)
 			except Exception:
 				pass
 
@@ -160,6 +178,9 @@ def gui_worker(cmd_q: mp.Queue, status_q: mp.Queue):
 
 	window.show()
 	app.exec()
+	# Stop GuiQThread cleanly before quitting RT process
+	command_util.status_queue.put(_SHUTDOWN_SENTINEL)
+	gui_thread.wait(2000)
 	command_util.send_command({"command": "quit"})
 
 def log_relay(log_q: mp.Queue, error_q: mp.Queue):

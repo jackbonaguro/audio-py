@@ -15,9 +15,11 @@ from sources.audio_source import AudioSource
 class AudioTrack:
 	def __init__(
 		self,
+		id: int,
 		buffer: AudioBuffer | None = None,
 		command_util: CommandUtil | None = None,
 	):
+		self.id = id
 		self.reset()
 		self.command_util = command_util
 		self.set_buffer(buffer)
@@ -64,6 +66,8 @@ class AudioTrack:
 		# Must seek through full chain: StretchedSource resets rubberband state.
 		self.source_left.seek(self.position)
 		self.source_right.seek(self.position)
+		if self.position == 0:
+			self.command_util.send_status({"type": "track_stopped", "track_id": self.id})
 
 	def set_speed(self, speed: float):
 		"""Update playback speed. Real-time safe."""
@@ -121,7 +125,6 @@ class AudioTrack:
 				self.source_left.seek(self.position)
 				self.source_right.seek(self.position)
 			else:
-				self.position = 0
 				self.playing = False
-				self.command_util.send_status({"type": "track_stopped"})
+				self.seek(0)
 		return stereo

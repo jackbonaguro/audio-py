@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
 
 from pathlib import Path
 
+
 class FileLayout(QVBoxLayout):
 	def __init__(self):
 		super().__init__()
@@ -18,11 +19,11 @@ class FileLayout(QVBoxLayout):
 
 		self.file_edit = QLineEdit()
 		self.file_edit.setPlaceholderText("Select an audio file...")
-		_default = Path(__file__).resolve().parent / "burn.mp3"
+		_default = Path(__file__).resolve().parent.parent / "burn.mp3"
 		self.file_edit.setText(str(_default) if _default.exists() else "")
 		self.file_edit.setReadOnly(True)
 		self.file_edit.setFixedWidth(200)
-		
+
 		browse_btn = QPushButton("Browse")
 		browse_btn.clicked.connect(self._browse)
 		self.browse_layout.addWidget(self.file_edit, 1)
@@ -47,7 +48,7 @@ class FileLayout(QVBoxLayout):
 	def _browse(self):
 		current = self.file_edit.text().strip()
 
-		start_dir = str(Path(__file__).resolve().parent)
+		start_dir = str(Path(__file__).resolve().parent.parent)
 		if current:
 			start_path = Path(current)
 			start_dir = str(start_path.parent if start_path.is_file() else start_path)
@@ -57,7 +58,7 @@ class FileLayout(QVBoxLayout):
 		)
 		if path:
 			self.file_edit.setText(path)
-	
+
 	def _load(self):
 		path = Path(self.file_edit.text().strip())
 		if not path.exists():

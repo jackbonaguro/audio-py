@@ -65,6 +65,7 @@ class LoadWorker(QThread):
 				"command": "track_ready",
 				"shm_name": shm_name,
 				"sample_len": sample_len,
+				"track_id": 0,
 			})
 			self.command_util.send_status({
 				"type": "load_status",
@@ -72,6 +73,7 @@ class LoadWorker(QThread):
 				"waveform": waveform,
 				"duration": duration,
 				"tempo": tempo,
+				"track_id": 0,
 			})
 		except Exception as e:
 			self.error.emit(str(e))

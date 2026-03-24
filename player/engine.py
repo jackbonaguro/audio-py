@@ -19,9 +19,9 @@ class _ShmBuffer:
 
 
 class AudioEngine(QObject):
-	track: AudioTrack | None = None
+	tracks: dict[int, AudioTrack] = {}
 	fileLoaded = Signal()
-	on_position_update: Callable[[float], None] | None = None
+	on_position_update: Callable[[float, int], None] | None = None
 
 	def __init__(self, command_util: CommandUtil):
 		super().__init__()
@@ -49,7 +49,7 @@ class AudioEngine(QObject):
 			traceback.print_exc()
 			return (np.zeros(frame_count * 2, dtype=np.float32).tobytes(), pyaudio.paContinue)
 
-	def load_from_shared_memory(self, shm_name: str, sample_len: int):
+	def load_from_shared_memory(self, shm_name: str, sample_len: int, track_id: int):
 		"""Create AudioTrack from shared memory. Caller (GUI) does load/tempo/waveform."""
 		if self._current_shm is not None:
 			self._current_shm.close()
@@ -63,50 +63,54 @@ class AudioEngine(QObject):
 		self._current_shm = shm
 		arr = np.ndarray((sample_len * 2,), dtype=np.float32, buffer=shm.buf)
 		buffer_wrapper = _ShmBuffer(arr, sample_len)
-		self.track = AudioTrack(buffer_wrapper, self.command_util)
+		self.tracks[track_id] = AudioTrack(track_id, buffer_wrapper, self.command_util)
 		self.fileLoaded.emit()
 
-	def get_track(self) -> AudioTrack | None:
-		return self.track
+	def get_track(self, track_id: int) -> AudioTrack | None:
+		return self.tracks[track_id]
 
-	def play_track(self):
-		if self.track is not None:
-			self.track.playing = True
+	def play_track(self, track_id: int):
+		if track_id in self.tracks:
+			self.tracks[track_id].playing = True
 
-	def pause_track(self):
-		if self.track is not None:
-			self.track.playing = False
+	def pause_track(self, track_id: int):
+		if track_id in self.tracks:
+			self.tracks[track_id].playing = False
 
-	def stop_track(self):
-		if self.track is not None:
-			self.track.playing = False
-			self.track.seek(0)  # Reset position and propagate to source chain
-			self.command_util.send_status({"type": "track_stopped"})
+	def stop_track(self, track_id: int):
+		if track_id in self.tracks:
+			self.tracks[track_id].playing = False
+			self.tracks[track_id].seek(0)  # Reset position and propagate to source chain
+			self.command_util.send_status({"type": "track_stopped", "track_id": track_id})
 
-	def seek_track(self, position: float):
-		if self.track is not None:
-			self.track.seek(position)
+	def seek_track(self, track_id: int, position: float):
+		if track_id in self.tracks:
+			self.tracks[track_id].seek(position)
 
-	def set_track_speed(self, speed: float):
-		if self.track is not None:
-			self.track.set_speed(speed)
+	def set_track_speed(self, track_id: int, speed: float):
+		if track_id in self.tracks:
+			self.tracks[track_id].set_speed(speed)
 
-	def set_track_pitch(self, pitch_semitones: float):
-		if self.track is not None:
-			self.track.set_pitch(pitch_semitones)
+	def set_track_pitch(self, track_id: int, pitch_semitones: float):
+		if track_id in self.tracks:
+			self.tracks[track_id].set_pitch(pitch_semitones)
 
 	# Real time stuff down here. The audio output stream is always open, and always requesting samples.
 	# For now we just have one track, so we delegate getting samples from it.
 	def get_samples(self, frame_count: int) -> np.ndarray:
-		if self.track is None:
+		if len(self.tracks) == 0:
 			return np.zeros(frame_count * 2, dtype=np.float32)
-		stereo = self.track.get_samples(frame_count)
-		if self.on_position_update is not None:
-			self.on_position_update(self.track.position / self.track.SAMPLE_RATE)
+
+		stereo = np.zeros(frame_count * 2, dtype=np.float32)
+		for track_id, track in self.tracks.items():
+			if track.playing:
+				stereo += track.get_samples(frame_count)
+			self.on_position_update(track.position / track.SAMPLE_RATE, track_id)
+
 		return stereo
 
 	# IPC Signals
-	def set_on_position_update(self, callback: Callable[[float], None]):
+	def set_on_position_update(self, callback: Callable[[float, int], None]):
 		self.on_position_update = callback
 	
 	

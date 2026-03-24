@@ -3,8 +3,9 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont, QFontDatabase, QFontMetrics
 
 from commandUtil import CommandUtil
-from speedPitchSection import SpeedPitchSection
-from waveFormSection import WaveformWidget
+
+from .stretch_controls import StretchControls
+from .waveform import WaveformWidget
 
 
 def _format_time(seconds: float) -> str:
@@ -16,20 +17,32 @@ def _format_time(seconds: float) -> str:
 	return f"{m:02d}:{s:02d}"
 
 
-class PlaybackSection(QVBoxLayout):
-	def __init__(self, command_util: CommandUtil):
+class TrackScopedCommandUtil:
+	def __init__(self, command_util: CommandUtil, track_id: int):
+		self._command_util = command_util
+		self._track_id = track_id
+
+	def send_command(self, command: dict):
+		cmd = {**command, "track_id": self._track_id}
+		self._command_util.send_command(cmd)
+
+
+class TrackComponent(QVBoxLayout):
+	def __init__(self, track_id: int, command_util: CommandUtil):
 		super().__init__()
 
-		self.playing = False
-
+		self.track_id = track_id
 		self.command_util = command_util
+		self._scoped_commands = TrackScopedCommandUtil(command_util, track_id)
+
+		self.playing = False
 		self._duration = 0.0
 		self._position = 0.0
 		self._updating_from_rt = False
 		self._user_dragging = False
 
-		self.speedPitchSection = SpeedPitchSection(command_util)
-		self.addLayout(self.speedPitchSection)
+		self.stretch_controls = StretchControls(self._scoped_commands)
+		self.addLayout(self.stretch_controls)
 
 		self.play_btn = QPushButton("▶")
 		self.play_btn.setFixedWidth(32)
@@ -50,9 +63,8 @@ class PlaybackSection(QVBoxLayout):
 		mono = QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
 		mono.setFixedPitch(True)
 		status_row = QHBoxLayout()
-		# Fixed widths to prevent layout shift when track loads (must accommodate placeholders)
 		fm = QFontMetrics(mono)
-		time_w = max(fm.horizontalAdvance("--:--"), fm.horizontalAdvance("99:59")) + 1 # IDK why but without this layout shifts
+		time_w = max(fm.horizontalAdvance("--:--"), fm.horizontalAdvance("99:59")) + 1
 		self.time_label = QLabel("--:--")
 		self.time_label.setFont(mono)
 		self.time_label.setMinimumWidth(time_w)
@@ -87,7 +99,6 @@ class PlaybackSection(QVBoxLayout):
 
 	def set_enabled(self, enabled: bool):
 		self.play_btn.setEnabled(enabled)
-		# self.position_slider.setEnabled(enabled)
 		self.waveform_widget.setEnabled(enabled)
 
 	def set_duration(self, duration: float):
@@ -96,7 +107,7 @@ class PlaybackSection(QVBoxLayout):
 		self.duration_label.setText(_format_time(self._duration))
 
 	def set_tempo(self, tempo: float):
-		self.speedPitchSection.set_tempo(tempo)
+		self.stretch_controls.set_tempo(tempo)
 
 	def _on_waveform_seek(self, position: float):
 		self._user_dragging = True
@@ -105,15 +116,14 @@ class PlaybackSection(QVBoxLayout):
 		pos = max(0.0, min(self._duration, position))
 		self._position = pos
 		self.time_label.setText(_format_time(pos))
-		self.command_util.send_command({"command": "seek", "position": pos})
-		# Update waveform immediately for responsive feedback
+		self._scoped_commands.send_command({"command": "seek", "position": pos})
 		self.waveform_widget.update_position(pos)
 
 	def _on_waveform_seek_finished(self):
 		self._user_dragging = False
 
 	def update_position(self, position: float):
-		"""Update slider from RT process position status (no seek command)."""
+		"""Update from RT process position status (no seek command)."""
 		if self._user_dragging:
 			return
 		self._updating_from_rt = True
@@ -126,18 +136,18 @@ class PlaybackSection(QVBoxLayout):
 	def play(self):
 		if not self.playing:
 			self.playing = True
-			self.command_util.send_command({"command": "play"})
+			self._scoped_commands.send_command({"command": "play"})
 			self.stop_btn.setEnabled(True)
 			self.play_btn.setText("⏸")
 		else:
 			self.playing = False
-			self.command_util.send_command({"command": "pause"})
+			self._scoped_commands.send_command({"command": "pause"})
 			self.play_btn.setEnabled(True)
 			self.stop_btn.setEnabled(True)
 			self.play_btn.setText("▶")
 
 	def stop(self):
-		self.command_util.send_command({"command": "stop"})
+		self._scoped_commands.send_command({"command": "stop"})
 		self.play_btn.setEnabled(True)
 		self.stop_btn.setEnabled(False)
 

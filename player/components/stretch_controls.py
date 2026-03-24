@@ -5,7 +5,7 @@ from PySide6.QtGui import QFontDatabase, QFontMetrics
 from commandUtil import CommandUtil
 
 
-class SpeedPitchSection(QHBoxLayout):
+class StretchControls(QHBoxLayout):
 	def __init__(self, command_util: CommandUtil):
 		super().__init__()
 		self.command_util = command_util

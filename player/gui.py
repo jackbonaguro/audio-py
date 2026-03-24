@@ -14,12 +14,10 @@ from PySide6.QtWidgets import (
 )
 
 from pathlib import Path
-import numpy as np
+
 from appState import AppState
-from fileSection import FileLayout
+from components import FileLayout, TrackComponent
 from loadWorker import LoadWorker
-from waveFormSection import WaveformWidget
-from playbackSection import PlaybackSection
 
 from commandUtil import CommandUtil
 
@@ -53,9 +51,9 @@ class MainWindow(QMainWindow):
 		self.file_layout = FileLayout()
 		self.layout.addLayout(self.file_layout)
 
-		# Playback section
-		self.playback_section = PlaybackSection(command_util=self.command_util)
-		self.layout.addLayout(self.playback_section)
+		# Track component (reusable per track)
+		self.main_track = TrackComponent(track_id=0, command_util=self.command_util)
+		self.layout.addLayout(self.main_track)
 
 		# Set central widget, to display
 		central = QWidget()
@@ -78,14 +76,29 @@ class MainWindow(QMainWindow):
 		waveform = status.get("waveform")
 		if waveform is None:
 			return
-		self.playback_section.on_waveform_ready(status)
+		track_id = status.get("track_id", 0)
+		track = self._get_track(track_id)
+		if track:
+			track.on_waveform_ready(status)
 
-	def on_position_received(self, position: float):
+	def on_position_received(self, status):
 		"""Handle position and other status updates from RT process."""
-		self.playback_section.update_position(position)
+		track_id = status.get("track_id", 0)
+		track = self._get_track(track_id)
+		if track:
+			track.update_position(status.get("position", 0))
 
-	def on_track_stopped(self):
-		self.playback_section.on_track_stopped()
+	def on_track_stopped(self, status=None):
+		track_id = status.get("track_id", 0) if isinstance(status, dict) else 0
+		track = self._get_track(track_id)
+		if track:
+			track.on_track_stopped()
+
+	def _get_track(self, track_id: int):
+		"""Return TrackComponent for track_id. Extend when multi-track."""
+		if track_id == 0:
+			return self.main_track
+		return None
 
 	def on_load_progress(self, progress: float):
 		self.file_layout.update_progress(progress)
