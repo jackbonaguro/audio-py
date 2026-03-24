@@ -7,3 +7,5 @@ class AppState:
 		self.main_track: int | None = None
 		# Playback tempo (BPM) of the main track; original tempo * speed ratio
 		self.main_tempo: float | None = None
+		# Track IDs that are synced to the main tempo
+		self.synced_tracks: set[int] = set()

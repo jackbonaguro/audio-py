@@ -1,3 +1,4 @@
+import math
 from typing import Callable
 
 from PySide6.QtWidgets import QHBoxLayout, QPushButton, QSlider
@@ -17,6 +18,7 @@ class StretchControls(QHBoxLayout):
 		app_state,
 		on_main_track_changed: Callable[[], None],
 		on_effective_tempo_changed: Callable[[float | None], None] | None = None,
+		on_sync_changed: Callable[[], None] | None = None,
 	):
 		super().__init__()
 		self.command_util = command_util
@@ -24,6 +26,7 @@ class StretchControls(QHBoxLayout):
 		self._app_state = app_state
 		self._on_main_track_changed = on_main_track_changed
 		self._on_effective_tempo_changed = on_effective_tempo_changed
+		self._on_sync_changed = on_sync_changed
 		self._original_tempo: float | None = None
 
 		# Logarithmic playback speed adjust slider
@@ -60,7 +63,9 @@ class StretchControls(QHBoxLayout):
 		self.main_btn.setCheckable(True)
 		self.main_btn.clicked.connect(self._on_main_clicked)
 		self.sync_btn = QPushButton("Sync")
-		self.sync_btn.setToolTip("Sync")
+		self.sync_btn.setToolTip("Sync tempo to main track")
+		self.sync_btn.setCheckable(True)
+		self.sync_btn.clicked.connect(self._on_sync_clicked)
 		self.addWidget(self.main_btn)
 		self.addWidget(self.sync_btn)
 
@@ -77,7 +82,45 @@ class StretchControls(QHBoxLayout):
 		self.pitch_slider.setValue(self.PITCH_DEFAULT)
 
 	def _update_speed_reset_btn(self):
-		self.speed_reset_btn.setEnabled(self.speed_slider.value() != self.SPEED_DEFAULT)
+		if self._track_id not in self._app_state.synced_tracks:
+			self.speed_reset_btn.setEnabled(self.speed_slider.value() != self.SPEED_DEFAULT)
+
+	def _on_sync_clicked(self):
+		if self._track_id in self._app_state.synced_tracks:
+			self._app_state.synced_tracks.discard(self._track_id)
+			self.sync_btn.setChecked(False)
+		else:
+			# Sync: set our effective tempo to main tempo
+			if (
+				self._app_state.main_tempo is not None
+				and self._original_tempo is not None
+				and self._original_tempo > 0
+			):
+				self._app_state.synced_tracks.add(self._track_id)
+				self.sync_btn.setChecked(True)
+				self.set_effective_tempo(self._app_state.main_tempo)
+				self._update_speed_controls_enabled(True)
+		if self._on_sync_changed:
+			self._on_sync_changed()
+
+	def set_sync_state(self, is_synced: bool):
+		self.sync_btn.setChecked(is_synced)
+
+	def set_effective_tempo(self, target_tempo: float):
+		"""Set speed so effective tempo equals target_tempo. Used when synced."""
+		if self._original_tempo is None or self._original_tempo <= 0:
+			return
+		speed = target_tempo / self._original_tempo
+		speed = max(0.5, min(2.0, speed))
+		slider_value = int(round(100 * math.log2(speed)))
+		slider_value = max(-100, min(100, slider_value))
+		# Update slider for UI consistency
+		self.speed_slider.blockSignals(True)
+		self.speed_slider.setValue(slider_value)
+		self.speed_slider.blockSignals(False)
+		# Send command directly - bypasses any issues with disabled slider not emitting
+		self.command_util.send_command({"command": "set_speed", "speed": speed})
+		self._update_tempo_display()
 
 	def _update_pitch_reset_btn(self):
 		self.pitch_reset_btn.setEnabled(self.pitch_slider.value() != self.PITCH_DEFAULT)
@@ -93,13 +136,33 @@ class StretchControls(QHBoxLayout):
 		self.main_btn.setChecked(is_main)
 
 	def set_enabled(self, enabled: bool):
-		self.speed_reset_btn.setEnabled(enabled and self.speed_slider.value() != self.SPEED_DEFAULT)
-		self.speed_slider.setEnabled(enabled)
+		self._update_speed_controls_enabled(enabled)
 		self.pitch_reset_btn.setEnabled(enabled and self.pitch_slider.value() != self.PITCH_DEFAULT)
 		self.pitch_slider.setEnabled(enabled)
 		self.main_btn.setEnabled(enabled)
-		self.sync_btn.setEnabled(enabled)
+		self._update_sync_btn_enabled(enabled)
 		self.tempo_pair.set_enabled(enabled)
+
+	def _update_speed_controls_enabled(self, base_enabled: bool):
+		"""Speed controls disabled when synced (tempo driven by main)."""
+		is_synced = self._track_id in self._app_state.synced_tracks
+		slider_enabled = base_enabled and not is_synced
+		self.speed_slider.setEnabled(slider_enabled)
+		self.speed_reset_btn.setEnabled(
+			slider_enabled and self.speed_slider.value() != self.SPEED_DEFAULT
+		)
+
+	def _update_sync_btn_enabled(self, base_enabled: bool):
+		"""Sync available when: has file, has main track with tempo, and not the main track."""
+		can_sync = (
+			base_enabled
+			and self._app_state.main_track is not None
+			and self._app_state.main_tempo is not None
+			and self._app_state.main_track != self._track_id
+			and self._original_tempo is not None
+			and self._original_tempo > 0
+		)
+		self.sync_btn.setEnabled(can_sync)
 
 	def set_speed(self, value: int):
 		# Convert integer slider (-100..100) to float -1..1, then to log range 0.5..2.0

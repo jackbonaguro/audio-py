@@ -62,22 +62,39 @@ def realtime_worker(cmd_q: mp.Queue, status_q: mp.Queue, log_q: mp.Queue):
 
 	state = {"running": True}
 
-	def drain_and_apply(command: str, param_key: str, apply_fn, initial_value=None):
-		"""For slider-style commands: drain all matching commands from queue, apply the last value
-		once, re-queue any other commands. Avoids flooding the engine with rapid slider updates."""
+	# Operation -> value param (same name ensures command and value stay in sync)
+	_DRAIN_OPS = {"seek": "position", "set_speed": "speed", "set_pitch": "pitch"}
+
+	def drain_and_apply(operation: str, apply_fn, group_by: str | None = None, initial_cmd=None):
+		"""Drain matching commands from queue, apply last value per group. Re-queue other commands.
+		operation identifies the command type and value param (e.g. set_speed -> extracts "speed").
+		group_by: param to group by for uniqueness (e.g. track_id); apply_fn(group_key, value) per group.
+		initial_cmd: already-consumed first command to include."""
+		value_param = _DRAIN_OPS.get(operation)
+		if value_param is None:
+			return
 		deferred = []
-		target = initial_value
+		merged = {}
+		if initial_cmd is not None and initial_cmd.get("command") == operation and initial_cmd.get(value_param) is not None:
+			k = initial_cmd.get(group_by) if group_by else None
+			if group_by is None or k is not None:
+				merged[k] = float(initial_cmd[value_param])
 		while True:
 			try:
 				c = cmd_q.get_nowait()
-				if c.get("command") == command and c.get(param_key) is not None:
-					target = float(c[param_key])
+				if c.get("command") == operation and c.get(value_param) is not None:
+					k = c.get(group_by) if group_by else None
+					if group_by is None or k is not None:
+						merged[k] = float(c[value_param])
 				else:
 					deferred.append(c)
 			except mp.queues.Empty:
 				break
-		if target is not None:
-			apply_fn(target)
+		for k, value in merged.items():
+			if group_by is not None:
+				apply_fn(k, value)
+			else:
+				apply_fn(value)
 		for c in deferred:
 			cmd_q.put(c)
 
@@ -110,14 +127,23 @@ def realtime_worker(cmd_q: mp.Queue, status_q: mp.Queue, log_q: mp.Queue):
 					if shm_name is not None and sample_len is not None and track_id is not None:
 						engine.load_from_shared_memory(shm_name, sample_len, track_id)
 				elif cmd.get("command") == "seek":
-					position = cmd.get("position")
-					drain_and_apply("seek", "position", lambda position: engine.seek_track(cmd.get("track_id"), position), position)
+					drain_and_apply(
+						"seek",
+						lambda track_id, position: engine.seek_track(track_id, position),
+						group_by="track_id", initial_cmd=cmd,
+					)
 				elif cmd.get("command") == "set_speed":
-					speed = cmd.get("speed")
-					drain_and_apply("set_speed", "speed", lambda speed: engine.set_track_speed(cmd.get("track_id"), speed), speed)
+					drain_and_apply(
+						"set_speed",
+						lambda track_id, speed: engine.set_track_speed(track_id, speed),
+						group_by="track_id", initial_cmd=cmd,
+					)
 				elif cmd.get("command") == "set_pitch":
-					pitch = cmd.get("pitch")
-					drain_and_apply("set_pitch", "pitch", lambda pitch: engine.set_track_pitch(cmd.get("track_id"), pitch), pitch)
+					drain_and_apply(
+						"set_pitch",
+						lambda track_id, pitch: engine.set_track_pitch(track_id, pitch),
+						group_by="track_id", initial_cmd=cmd,
+					)
 			except mp.queues.Empty:
 				pass
 

@@ -38,6 +38,7 @@ class TrackComponent(QVBoxLayout):
 		app_state,
 		on_main_track_changed: Callable[[], None],
 		on_main_tempo_changed: Callable[[], None] | None = None,
+		on_sync_changed: Callable[[], None] | None = None,
 	):
 		super().__init__()
 
@@ -47,6 +48,7 @@ class TrackComponent(QVBoxLayout):
 		self._app_state = app_state
 		self._on_main_track_changed = on_main_track_changed
 		self._on_main_tempo_changed = on_main_tempo_changed
+		self._on_sync_changed_cb = on_sync_changed
 
 		self.playing = False
 		self._duration = 0.0
@@ -61,6 +63,7 @@ class TrackComponent(QVBoxLayout):
 			self._app_state,
 			self._on_main_track_changed,
 			on_effective_tempo_changed=self._on_effective_tempo_changed,
+			on_sync_changed=self._on_sync_changed,
 		)
 		self.addLayout(self.stretch_controls)
 
@@ -133,6 +136,21 @@ class TrackComponent(QVBoxLayout):
 
 	def get_effective_tempo(self) -> float | None:
 		return self.stretch_controls.get_effective_tempo()
+
+	def set_effective_tempo(self, target_tempo: float):
+		self.stretch_controls.set_effective_tempo(target_tempo)
+
+	def _on_sync_changed(self):
+		if self._on_sync_changed_cb:
+			self._on_sync_changed_cb()
+
+	def update_sync_state(self):
+		"""Refresh sync button checked state and enabled state."""
+		has_file = self.play_btn.isEnabled()
+		is_synced = self.track_id in self._app_state.synced_tracks
+		self.stretch_controls.set_sync_state(is_synced)
+		self.stretch_controls._update_speed_controls_enabled(has_file)
+		self.stretch_controls._update_sync_btn_enabled(has_file)
 
 	def set_duration(self, duration: float):
 		self._duration = max(0, duration)

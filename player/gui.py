@@ -64,6 +64,7 @@ class MainWindow(QMainWindow):
 				app_state=self.app_state,
 				on_main_track_changed=self._on_main_track_changed,
 				on_main_tempo_changed=self._on_main_tempo_changed,
+				on_sync_changed=self._on_sync_changed,
 			),
 			TrackComponent(
 				track_id=1,
@@ -71,6 +72,7 @@ class MainWindow(QMainWindow):
 				app_state=self.app_state,
 				on_main_track_changed=self._on_main_track_changed,
 				on_main_tempo_changed=self._on_main_tempo_changed,
+				on_sync_changed=self._on_sync_changed,
 			),
 		]
 		tracks_row = QHBoxLayout()
@@ -110,13 +112,17 @@ class MainWindow(QMainWindow):
 		if main is None:
 			self.main_track_pair.set_text("--")
 			self.app_state.main_tempo = None
+			self.app_state.synced_tracks.clear()
 		else:
 			self.main_track_pair.set_text("A" if main == 0 else "B")
+			self.app_state.synced_tracks.discard(main)  # Can't sync to self
 			track = self.tracks[main]
 			self.app_state.main_tempo = track.get_effective_tempo()
 		self._update_main_tempo_display()
+		self._apply_main_tempo_to_synced_tracks()
 		for i, track in enumerate(self.tracks):
 			track.set_main_state(self.app_state.main_track == i)
+			track.update_sync_state()
 
 	def _on_main_tempo_changed(self):
 		self.app_state.main_tempo = (
@@ -125,10 +131,24 @@ class MainWindow(QMainWindow):
 			else None
 		)
 		self._update_main_tempo_display()
+		self._apply_main_tempo_to_synced_tracks()
+		for track in self.tracks:
+			track.update_sync_state()
+
+	def _on_sync_changed(self):
+		self._apply_main_tempo_to_synced_tracks()
+		for track in self.tracks:
+			track.update_sync_state()
+
+	def _apply_main_tempo_to_synced_tracks(self):
+		if self.app_state.main_tempo is None:
+			return
+		for track_id in self.app_state.synced_tracks:
+			self.tracks[track_id].set_effective_tempo(self.app_state.main_tempo)
 
 	def _update_main_tempo_display(self):
 		if self.app_state.main_tempo is not None:
-			self.main_tempo_pair.set_text(f"{self.app_state.main_tempo:.1f}")
+			self.main_tempo_pair.set_text(f"{self.app_state.main_tempo:03.1f}")
 		else:
 			self.main_tempo_pair.set_text("---.-")
 
