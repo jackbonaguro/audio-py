@@ -34,9 +34,14 @@ class FileLayout(QVBoxLayout):
 		divider.setFrameShadow(QFrame.Shadow.Sunken)
 		self.browse_layout.addWidget(divider)
 
-		load_btn = QPushButton("Load")
-		load_btn.clicked.connect(self._load)
-		self.browse_layout.addWidget(load_btn)
+		load_a_btn = QPushButton("Load A")
+		load_a_btn.clicked.connect(lambda: self._load(0))
+		self.browse_layout.addWidget(load_a_btn)
+
+
+		load_b_btn = QPushButton("Load B")
+		load_b_btn.clicked.connect(lambda: self._load(1))
+		self.browse_layout.addWidget(load_b_btn)
 
 		self.addLayout(self.browse_layout)
 
@@ -59,11 +64,11 @@ class FileLayout(QVBoxLayout):
 		if path:
 			self.file_edit.setText(path)
 
-	def _load(self):
+	def _load(self, track_id: int):
 		path = Path(self.file_edit.text().strip())
 		if not path.exists():
 			return
-		self.parent().parent().parent().load_file(path)
+		self.parent().parent().parent().load_file(path, track_id)
 
 	def update_progress(self, progress: float):
 		self.progress_bar.setValue(int(progress * 100))

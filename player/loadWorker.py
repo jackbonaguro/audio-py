@@ -17,10 +17,11 @@ class LoadWorker(QThread):
 	"""Loads audio in GUI process, computes tempo and waveform, ships raw data to RT via shared memory."""
 	error = Signal(str)
 
-	def __init__(self, path: Path, command_util: CommandUtil):
+	def __init__(self, path: Path, command_util: CommandUtil, track_id: int):
 		super().__init__()
 		self.path = path
 		self.command_util = command_util
+		self.track_id = track_id
 
 	def run(self):
 		shm = None
@@ -65,7 +66,7 @@ class LoadWorker(QThread):
 				"command": "track_ready",
 				"shm_name": shm_name,
 				"sample_len": sample_len,
-				"track_id": 0,
+				"track_id": self.track_id,
 			})
 			self.command_util.send_status({
 				"type": "load_status",
@@ -73,7 +74,7 @@ class LoadWorker(QThread):
 				"waveform": waveform,
 				"duration": duration,
 				"tempo": tempo,
-				"track_id": 0,
+				"track_id": self.track_id,
 			})
 		except Exception as e:
 			self.error.emit(str(e))

@@ -11,6 +11,8 @@ from PySide6.QtWidgets import (
 	QFileDialog,
 	QLineEdit,
 	QFrame,
+	QSpacerItem,
+	QSizePolicy,
 )
 
 from pathlib import Path
@@ -51,20 +53,37 @@ class MainWindow(QMainWindow):
 		self.file_layout = FileLayout()
 		self.layout.addLayout(self.file_layout)
 
-		# Track component (reusable per track)
-		self.main_track = TrackComponent(track_id=0, command_util=self.command_util)
-		self.layout.addLayout(self.main_track)
+		# Tracks 1 & 2 side by side (left & right)
+		self.tracks = [
+			TrackComponent(track_id=0, command_util=self.command_util),
+			TrackComponent(track_id=1, command_util=self.command_util)
+		]
+		tracks_row = QHBoxLayout()
+		tracks_row.setSpacing(12)
+		track1_col = QVBoxLayout()
+		track1_col.addWidget(QLabel("A"))
+		track1_col.addLayout(self.tracks[0])
+		tracks_row.addLayout(track1_col)
+
+		spacer = QSpacerItem(100, 0, QSizePolicy.Minimum, QSizePolicy.Minimum)
+		tracks_row.addSpacerItem(spacer)
+
+		track2_col = QVBoxLayout()
+		track2_col.addWidget(QLabel("B"))
+		track2_col.addLayout(self.tracks[1])
+		tracks_row.addLayout(track2_col)
+		self.layout.addLayout(tracks_row)
 
 		# Set central widget, to display
 		central = QWidget()
 		central.setLayout(self.layout)
 		self.setCentralWidget(central)
 
-	def load_file(self, path: Path):
+	def load_file(self, path: Path, track_id: int):
 		# self.command_util.send_command({"command": "load_file", "path": str(path)})
 		if self._load_worker is not None and self._load_worker.isRunning():
 			return
-		self._load_worker = LoadWorker(path, self.command_util)
+		self._load_worker = LoadWorker(path, self.command_util, track_id)
 		self._load_worker.error.connect(self._on_load_error)
 		self._load_worker.start()
 
@@ -95,9 +114,11 @@ class MainWindow(QMainWindow):
 			track.on_track_stopped()
 
 	def _get_track(self, track_id: int):
-		"""Return TrackComponent for track_id. Extend when multi-track."""
+		"""Return TrackComponent for track_id."""
 		if track_id == 0:
-			return self.main_track
+			return self.tracks[0]
+		if track_id == 1:
+			return self.tracks[1]
 		return None
 
 	def on_load_progress(self, progress: float):
