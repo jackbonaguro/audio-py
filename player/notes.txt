@@ -36,3 +36,6 @@ https://github.com/astral-sh/uv/issues/6981
 	- Will only really be fixed by a master clock, with periodic adjustments to raw data's position
 
 With the above, it won't be performance-ready. But it will be demonstrable. It will still need at a minimum EQ, movement by beats, analysis by EQ, looping, and routing / monitoring. No plan to implement FX for now.
+
+2026-03-25
+I put all the tasks in Trello, and pushed all code (including rband fork) to github.

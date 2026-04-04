@@ -28,6 +28,8 @@ class StretchControls(QHBoxLayout):
 		self._on_effective_tempo_changed = on_effective_tempo_changed
 		self._on_sync_changed = on_sync_changed
 		self._original_tempo: float | None = None
+		# Last speed ratio sent to RT (0.5–2.0). Slider is quantized; this is authoritative for tempo math.
+		self._speed_ratio = 1.0
 
 		# Logarithmic playback speed adjust slider
 		self.speed_reset_btn = QPushButton("Rs")
@@ -110,16 +112,14 @@ class StretchControls(QHBoxLayout):
 		"""Set speed so effective tempo equals target_tempo. Used when synced."""
 		if self._original_tempo is None or self._original_tempo <= 0:
 			return
-		speed = target_tempo / self._original_tempo
-		speed = max(0.5, min(2.0, speed))
-		slider_value = int(round(100 * math.log2(speed)))
+		# Exact ratio; do not round-trip through the slider for audio or tempo math.
+		self._speed_ratio = max(0.5, min(2.0, target_tempo / self._original_tempo))
+		slider_value = int(round(100 * math.log2(self._speed_ratio)))
 		slider_value = max(-100, min(100, slider_value))
-		# Update slider for UI consistency
 		self.speed_slider.blockSignals(True)
 		self.speed_slider.setValue(slider_value)
 		self.speed_slider.blockSignals(False)
-		# Send command directly - bypasses any issues with disabled slider not emitting
-		self.command_util.send_command({"command": "set_speed", "speed": speed})
+		self.command_util.send_command({"command": "set_speed", "speed": self._speed_ratio})
 		self._update_tempo_display()
 
 	def _update_pitch_reset_btn(self):
@@ -168,8 +168,8 @@ class StretchControls(QHBoxLayout):
 		# Convert integer slider (-100..100) to float -1..1, then to log range 0.5..2.0
 		# 2^x maps (-1, 0, 1) -> (0.5, 1.0, 2.0)
 		x = value / 100.0
-		speed = 2 ** x
-		self.command_util.send_command({"command": "set_speed", "speed": speed})
+		self._speed_ratio = 2 ** x
+		self.command_util.send_command({"command": "set_speed", "speed": self._speed_ratio})
 		self._update_tempo_display()
 
 	def _update_tempo_display(self):
@@ -179,8 +179,7 @@ class StretchControls(QHBoxLayout):
 			if self._on_effective_tempo_changed:
 				self._on_effective_tempo_changed(None)
 			return
-		speed = 2 ** (self.speed_slider.value() / 100.0)
-		effective_tempo = self._original_tempo * speed
+		effective_tempo = self._original_tempo * self._speed_ratio
 		self.tempo_pair.set_text(f"{effective_tempo:03.1f}")
 		if self._on_effective_tempo_changed:
 			self._on_effective_tempo_changed(effective_tempo)
@@ -189,8 +188,7 @@ class StretchControls(QHBoxLayout):
 		"""Current playback tempo (original * speed ratio)."""
 		if self._original_tempo is None:
 			return None
-		speed = 2 ** (self.speed_slider.value() / 100.0)
-		return self._original_tempo * speed
+		return self._original_tempo * self._speed_ratio
 
 	def set_pitch(self, value: int):
 		pitch = value / 100.0
@@ -199,4 +197,8 @@ class StretchControls(QHBoxLayout):
 	def set_tempo(self, tempo: float):
 		"""Set original tempo (from file analysis). Display shows original * speed ratio."""
 		self._original_tempo = max(0, tempo)
+		self._speed_ratio = 1.0
+		self.speed_slider.blockSignals(True)
+		self.speed_slider.setValue(self.SPEED_DEFAULT)
+		self.speed_slider.blockSignals(False)
 		self._update_tempo_display()
